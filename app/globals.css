@@ -1,0 +1,577 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ==========================================================
+       MODERN JEWEL GREEN  --  light theme
+       ----------------------------------------------------------
+       Channels only (no hsl() wrapper) so Tailwind can inject an
+       alpha: `hsl(var(--primary) / 0.2)` powers `bg-primary/20`.
+
+       Two rules keep this palette honest:
+
+       1. --accent is shadcn's *neutral interaction surface*, not a
+          brand colour. Every `hover:bg-accent` / `focus:bg-accent`
+          in components/ui resolves to it, so it must stay quiet and
+          keep --accent-foreground legible on top (16.4:1 here).
+          The old palette put a saturated gold here, which flashed
+          yellow on every menu hover and flipped light text to
+          near-black. Decorative pop lives in --brand instead.
+
+       2. Each semantic hue is a triad:
+            --x            solid fill  (dots, bars, filled badges)
+            --x-strong     text/icon on a light surface (>= 4.5:1)
+            --x-surface    tinted background for that hue
+          Pair them as `bg-x-surface text-x-strong`. Never put small
+          text on the bare --x fill; those are tuned for fills only.
+
+       Contrast ratios in comments are measured against --background
+       unless stated otherwise.
+       ========================================================== */
+
+    /* -- surfaces ------------------------------------------------ */
+    --background: 90 13% 97%;        /* #F7F8F6  warm off-white canvas */
+    --card: 0 0% 100%;               /* #FFFFFF */
+    --card-foreground: 165 11% 7%;
+    --popover: 0 0% 100%;            /* #FFFFFF */
+    --popover-foreground: 165 11% 7%;
+    --sunken: 120 8% 95%;            /* #F1F3F1  wells, table headers */
+
+    /* -- ink ----------------------------------------------------- */
+    --foreground: 165 11% 7%;        /* #101413  15.8:1 */
+    --muted-foreground: 155 6% 40%;  /* #5F6B66   5.2:1 */
+
+    /* -- primary: jewel emerald ---------------------------------- */
+    --primary: 163 81% 23%;          /* #0B6B4F  white on it 6.5:1 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 162 82% 19%;    /* #095A42  darker, solid-button hover */
+    --primary-hi: 160 82% 35%;       /* #10A372  lifted: gradients, on-dark */
+    --primary-light: 152 44% 92%;    /* #E3F4EC  tint background */
+    --primary-deep: 164 84% 16%;     /* #064E3B  darkest stop, hero gradients */
+
+    /* -- secondary: quiet surface, dark ink ---------------------- */
+    /* Was a second green, which made secondary buttons read as a
+       washed-out primary. Neutral surface is the shadcn contract. */
+    --secondary: 150 13% 94%;        /* #EEF2F0 */
+    --secondary-foreground: 165 11% 7%;
+
+    /* -- accent: NEUTRAL interaction surface (see rule 1) -------- */
+    --accent: 150 13% 94%;           /* #EEF2F0 */
+    --accent-foreground: 165 11% 7%; /* #101413  16.4:1 on accent */
+
+    /* -- brand: the pop (decorative fills, never small text) ----- */
+    --brand: 11 100% 65%;            /* #FF6B4A  coral */
+    --brand-foreground: 165 11% 7%;  /* coral takes DARK text: 7.5:1 */
+    --brand-strong: 12 76% 44%;      /* #C43D1B  coral text on light 4.8:1 */
+    --brand-light: 15 100% 95%;      /* #FFEDE7  tint background */
+
+    /* -- rating: gold, stars and premium flourishes only --------- */
+    --rating: 38 87% 59%;            /* #F2B03D */
+
+    --destructive: 0 72% 51%;        /* #DC2626  white on it 4.8:1 */
+    --destructive-foreground: 0 0% 100%;
+    --destructive-strong: 0 74% 42%; /* #B91C1C  6.5:1 on white */
+    --destructive-surface: 0 93% 94%;/* #FEE2E2 */
+
+    --muted: 120 8% 95%;             /* #F1F3F1 */
+
+    --border: 144 9% 90%;            /* #E2E7E4 */
+    --border-strong: 143 8% 81%;     /* #CBD3CE  emphasis dividers */
+    /* Interactive boundaries (input, outline button, select trigger).
+       WCAG 1.4.11 wants 3:1 for the edge that identifies a control, and
+       --border-strong only reaches 1.5:1 on white -- a field with no
+       perceivable outline. Kept as its own token so decorative dividers
+       stay airy instead of every rule on the page going heavy.
+       Tuned to clear 3:1 on the canvas too, not just on card: forms sit
+       on --background as often as they sit on white. */
+    --control-border: 143 8% 53%;    /* #7E8A84  3.2:1 canvas, 3.4:1 card */
+    --input: 144 9% 90%;
+    --ring: 160 82% 35%;             /* #10A372  visible focus ring */
+
+    --radius: 0.75rem;
+
+    /* -- semantic triads: fill / text-on-light / tinted surface --- */
+    /* At the old 33% lightness white sat on this fill at only 3.55:1, and
+       the success button is the one place white lands on the bare fill
+       ("Mark paid", "Serve"). Darkened until white clears AA; the -strong
+       step above it is still darker, so the button gains contrast on
+       hover rather than losing it. */
+    --success: 160 84% 28%;          /* #0C865D  white on it 4.6:1 */
+    --success-strong: 162 88% 25%;   /* #077650  4.6:1 on success-surface */
+    --success-surface: 152 44% 92%;  /* #E3F4EC */
+
+    --warning: 32 95% 44%;           /* #D97706 */
+    --warning-strong: 26 90% 33%;    /* #9A3412  6.9:1 on white */
+    --warning-surface: 48 96% 89%;   /* #FEF3C7 */
+
+    --error: 0 72% 51%;              /* #DC2626 */
+    --error-strong: 0 74% 42%;       /* #B91C1C */
+    --error-surface: 0 93% 94%;      /* #FEE2E2 */
+
+    --info: 221 83% 53%;             /* #2563EB */
+    --info-strong: 224 76% 42%;      /* #1D4ED8  6.3:1 on white */
+    --info-surface: 214 95% 93%;     /* #DBEAFE */
+
+    /* -- charts: distinguishable by hue AND lightness, so the set
+          survives greyscale printing and the common colour-vision
+          deficiencies. Ordered by visual weight.
+
+          Every series clears 3:1 against --card (WCAG 1.4.11): a bar or
+          line IS the content, so it has to be discernible, not merely
+          present. That is why chart-2 and chart-4 are a step darker than
+          the --brand and --rating tokens they otherwise mirror -- those
+          two are decorative fills and carry no data. --------------- */
+    --chart-1: 163 81% 23%;          /* jewel emerald  6.6:1 */
+    --chart-2: 11 100% 61%;          /* coral          3.1:1 */
+    --chart-3: 221 83% 53%;          /* blue           5.2:1 */
+    --chart-4: 38 87% 42%;           /* amber          3.1:1 */
+    --chart-5: 262 60% 55%;          /* violet         5.7:1 */
+    --chart-6: 187 72% 38%;          /* teal           3.5:1 */
+
+    /* -- sidebar: dark chrome shared by the dashboard portals ---- */
+    --sidebar: 165 30% 8%;           /* #0F1A16  deep green-black */
+    --sidebar-raised: 164 22% 13%;   /* #19271F  hover / raised rows */
+    --sidebar-foreground: 150 20% 96%;
+    --sidebar-muted: 150 8% 62%;     /* #97A39D  4.9:1 on sidebar */
+    --sidebar-accent: 160 82% 45%;   /* #14CE8E  reads bright on dark */
+    --sidebar-border: 165 18% 18%;
+    /* Destructive actions in the dark chrome. --destructive is tuned
+       for light surfaces and only clears 4:1 on --sidebar, so the
+       sidebar logout hover needs its own lifted red (7.4:1). */
+    --sidebar-danger: 0 91% 71%;     /* #F87171 */
+
+    /* -- elevation: tinted with the brand's dark green rather than
+          pure black, so shadows sit in the palette instead of
+          greying the surface underneath. ---------------------- */
+    --shadow-color: 165 30% 12%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Tabular figures keep currency columns from jittering as digits
+       change -- this is a billing app, money is everywhere. */
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+  /* Headings get tighter tracking; default Inter spacing reads loose
+     at display sizes and is a big part of the "dated" feel. */
+  h1, h2, h3, h4 {
+    @apply tracking-[-0.018em];
+  }
+  /* Prose and inputs keep proportional figures. */
+  p, input, textarea {
+    font-variant-numeric: normal;
+  }
+  /* One consistent focus ring everywhere, keyboard-only so mouse
+     users never see a ring on click. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: calc(var(--radius) - 4px);
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.16);
+    color: hsl(var(--foreground));
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background-size: 200% 100%;
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--muted)) 75%
+  );
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s ease-out;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.glass {
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, hsl(var(--foreground) / 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--foreground) / 0.03) 1px, transparent 1px);
+}
+
+.bg-register-gradient {
+  background:
+    radial-gradient(circle at top right, hsl(var(--primary-hi) / 0.12), transparent 40%),
+    radial-gradient(circle at bottom left, hsl(var(--brand) / 0.07), transparent 45%),
+    linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--primary-light) / 0.35) 100%);
+}
+
+/* ==============================================
+   INTERACTION UTILITIES
+   ==============================================
+   The rule these encode: hover may change the *surface*, never the
+   text colour, so contrast can only improve on hover. That is what
+   went wrong before -- hover repainted the background bright gold
+   and left the foreground to fend for itself. */
+
+/* Card that responds to hover without moving text. */
+.interactive-card {
+  transition: box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 180ms ease;
+}
+.interactive-card:hover {
+  box-shadow: var(--tw-shadow-lifted, 0 10px 30px -12px hsl(var(--shadow-color) / 0.16));
+  border-color: hsl(var(--border-strong));
+  transform: translateY(-2px);
+}
+
+/* Row hover for tables and lists: surface only. */
+.row-hover {
+  transition: background-color 140ms ease;
+}
+.row-hover:hover {
+  background-color: hsl(var(--accent));
+}
+
+/* Subtle top sheen on dark chrome, keeps the sidebar from reading flat. */
+.chrome-sheen {
+  background-image: linear-gradient(
+    180deg,
+    hsl(var(--sidebar-accent) / 0.05) 0%,
+    transparent 140px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive-card,
+  .row-hover {
+    transition: none;
+  }
+  .interactive-card:hover {
+    transform: none;
+  }
+}
+
+/* ==============================================
+   ADMIN DARK THEME UTILITIES
+   ============================================== */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px hsl(var(--primary-hi) / 0.2); }
+  50% { box-shadow: 0 0 20px hsl(var(--primary-hi) / 0.4); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes counter-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes border-glow {
+  0%, 100% { border-color: hsl(var(--primary-hi) / 0.3); }
+  50% { border-color: hsl(var(--primary-hi) / 0.7); }
+}
+
+.admin-glow {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.admin-slide-right {
+  animation: slide-in-right 0.4s ease-out;
+}
+
+.admin-slide-left {
+  animation: slide-in-left 0.4s ease-out;
+}
+
+.admin-counter-in {
+  animation: counter-in 0.3s ease-out;
+}
+
+.admin-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.admin-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
+}
+
+/* ==============================================
+   RECHARTS
+   ==============================================
+   Applied globally rather than only under .admin-layout so owner and
+   reception charts inherit the same axis/grid/tooltip treatment. */
+.recharts-text {
+  fill: hsl(var(--muted-foreground)) !important;
+  font-size: 11px;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: hsl(var(--border)) !important;
+}
+
+/* The axis baseline should read stronger than the interior gridlines. */
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: hsl(var(--border-strong)) !important;
+}
+
+.recharts-default-tooltip,
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  box-shadow: 0 12px 28px -8px hsl(var(--shadow-color) / 0.16),
+              0 4px 10px -4px hsl(var(--shadow-color) / 0.08) !important;
+  padding: 8px 10px !important;
+}
+
+.recharts-default-tooltip .recharts-tooltip-label {
+  color: hsl(var(--foreground)) !important;
+  font-weight: 600;
+  margin-bottom: 4px !important;
+}
+
+.recharts-default-tooltip .recharts-tooltip-item {
+  color: hsl(var(--muted-foreground)) !important;
+  padding: 1px 0 !important;
+}
+
+/* Kill the grey wash Recharts paints over the hovered bar/slice; it
+   dulls the palette. A faint primary tint reads as intentional. */
+.recharts-rectangle.recharts-tooltip-cursor {
+  fill: hsl(var(--primary) / 0.06) !important;
+}
+
+.recharts-active-dot circle {
+  stroke: hsl(var(--card)) !important;
+  stroke-width: 2px !important;
+}
+
+.recharts-legend-item-text {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 12px;
+}
+
+/* ==============================================
+   BOOK MENU THEME
+   ============================================== */
+:root {
+  --paper: #fbf7f0;
+  --paper-warm: #f5f0e8;
+  --ink: #1a1a1a;
+  --ink-soft: #5c5c5c;
+  --ink-mute: #8b6f3a;
+  --burgundy: #8b2e2e;
+  --burgundy-deep: #6b1f1f;
+  --gold: #c5a55a;
+  --gold-soft: #d9c088;
+  --rule: #e8dfd0;
+}
+
+.dark {
+  --paper: #1a1614;
+  --paper-warm: #221d1a;
+  --ink: #f2ebdc;
+  --ink-soft: #b5aa96;
+  --ink-mute: #c5a55a;
+  --burgundy: #c26a6a;
+  --burgundy-deep: #a04848;
+  --gold: #d9b96a;
+  --gold-soft: #e6cd94;
+  --rule: #3a312c;
+}
+
+/* Paper noise texture */
+.paper-texture {
+  position: relative;
+  isolation: isolate;
+}
+.paper-texture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.paper-texture > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Dotted price leader */
+.price-leader {
+  flex: 1;
+  min-width: 1.5rem;
+  background-image: radial-gradient(circle, var(--gold) 1px, transparent 1.2px);
+  background-size: 6px 2px;
+  background-repeat: repeat-x;
+  background-position: 0 center;
+  opacity: 0.55;
+  height: 2px;
+  align-self: center;
+  margin: 0 0.5rem;
+}
+
+/* Spine shadow — only meaningful on the two-page desktop spread. Below lg the
+   book renders a single page, so the centre line would cut straight through
+   the middle of one page (the "mystery line" on mobile). */
+@media (max-width: 1023.98px) {
+  .book-spine::after {
+    display: none;
+  }
+}
+
+/* Hide scrollbar on the mobile category chip rail (it stays swipeable) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Spine shadow */
+.book-spine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 60px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.06) 40%,
+    rgba(0, 0, 0, 0.14) 50%,
+    rgba(0, 0, 0, 0.06) 60%,
+    transparent 100%
+  );
+  z-index: 5;
+}
+
+/* Shimmer for placeholders */
+@keyframes book-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.book-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--paper-warm) 0%,
+    rgba(197, 165, 90, 0.08) 50%,
+    var(--paper-warm) 100%
+  );
+  background-size: 200% 100%;
+  animation: book-shimmer 3.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-shimmer { animation: none; }
+}

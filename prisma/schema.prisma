@@ -1,0 +1,1022 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String?  @unique
+  passwordHash  String?  @map("password_hash")
+  firstName     String   @default("") @map("first_name")
+  lastName      String   @default("") @map("last_name")
+  phoneNumber   String?  @map("phone_number")
+  profileImage  String?  @map("profile_image")
+  role          String   @default("STAFF")
+  restaurantId  String?  @map("restaurant_id")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+
+  // Owner profile + KYC / identity verification. Primarily managed by platform
+  // admins from the Owner Management console; all nullable/defaulted so they
+  // apply harmlessly to every User role.
+  dateOfBirth          DateTime? @map("date_of_birth")
+  address              String?
+  identityDocType      String    @default("") @map("identity_doc_type")
+  identityDocNumber    String?   @map("identity_doc_number")
+  identityDocImage     String?   @map("identity_doc_image")
+  identityDocBackImage String?   @map("identity_doc_back_image")
+  isVerified           Boolean   @default(false) @map("is_verified")
+  verifiedAt           DateTime? @map("verified_at")
+  verifiedBy           String?   @map("verified_by")
+  adminNotes           String?   @map("admin_notes")
+
+  restaurant    Restaurant?     @relation(fields: [restaurantId], references: [id])
+  notifications Notification[]
+  supportTickets SupportTicket[]
+
+  @@index([restaurantId])
+  @@map("users")
+}
+
+model Restaurant {
+  id              String   @id @default(cuid())
+  ownerId         String?  @map("owner_id")
+  name            String
+  description     String?
+  type            String   @default("CASUAL_DINING")
+  email           String   @default("")
+  phoneNumber     String   @default("") @map("phone")
+  websiteUrl      String?  @map("website_url")
+  logoUrl         String?  @map("logo_url")
+  bannerImageUrl  String?  @map("cover_url")
+  street          String   @default("") @map("address")
+  city            String   @default("")
+  state           String   @default("")
+  postalCode      String   @default("") @map("postal_code")
+  country         String   @default("Nepal")
+  latitude        Float?
+  longitude       Float?
+  timezone        String   @default("Asia/Kathmandu")
+  currency        String   @default("NPR")
+  language        String   @default("en")
+  taxPercentage   Float    @default(13) @map("tax_percentage")
+  serviceCharge   Float    @default(10) @map("service_charge")
+  vatRegistered   Boolean  @default(false) @map("vat_registered")
+  panNumber       String?  @map("pan_number")
+  vatNumber       String?  @map("vat_number")
+  /// IRD pricing mode (bill-design.md section 8.1).
+  /// INCLUSIVE: menu price is the final guest price and VAT is back-calculated.
+  ///   Lower legal risk, aligned with the 2023 Supreme Court ruling.
+  /// ADDITIVE: menu price is a pre-VAT base with service charge and VAT stacked
+  ///   on top. Common practice but carries documented enforcement risk.
+  /// Defaults to INCLUSIVE because that is what every pre-existing outlet was
+  /// already doing; an ADDITIVE default would silently add VAT on top of menu
+  /// prices the moment this column started being read.
+  pricingMode     String   @default("INCLUSIVE") @map("pricing_mode")
+  /// Branch/outlet code, prefixed onto invoice numbers so multi-outlet groups
+  /// do not collide when syncing to CBMS.
+  branchCode      String?  @map("branch_code")
+  /// Rolling 12-month turnover, used to warn as the VAT-registration and CBMS
+  /// thresholds approach. Refreshed by the reporting job, not on the hot path.
+  rollingTurnover Float    @default(0) @map("rolling_turnover")
+  enableGST       Boolean  @default(false) @map("enable_gst")
+  gstNumber       String?  @map("gst_number")
+  enableQRMenu    Boolean  @default(true) @map("enable_qr_menu")
+  totalTables     Int      @default(0) @map("num_tables")
+  totalStaff      Int      @default(0) @map("total_staff")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  users            User[]
+  staff            Staff[]
+  tables           RestaurantTable[]
+  categories       Category[]
+  menuItems        MenuItem[]
+  combos           Combo[]
+  orders           Order[]
+  inventory        InventoryItem[]
+  bills            Bill[]
+  notifications    Notification[]
+  activityLogs     ActivityLog[]
+  subscriptions    Subscription[]
+  operatingHours   OperatingHours[]
+  kpiCards         KpiCard[]
+  shifts           Shift[]
+  reservations     Reservation[]
+  waitlistEntries  WaitlistEntry[]
+  barTabs          BarTab[]
+  customers        Customer[]
+  coupons          Coupon[]
+  corporateAccounts CorporateAccount[]
+  taxRates         TaxRate[]
+  spaces           Space[]
+  supportTickets   SupportTicket[]
+  invoiceSetting   InvoiceSetting?
+  kotSetting       KotSetting?
+  settingKv        RestaurantSetting?
+
+  @@map("restaurants")
+}
+
+model Space {
+  id           String   @id @default(cuid())
+  restaurantId String   @map("restaurant_id")
+  name         String
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  // Tables reference a space by name (RestaurantTable.space is a free-text
+  // column, not a foreign key — renaming a space bulk-updates every table's
+  // `space` string in the same transaction instead of relying on a join).
+  @@unique([restaurantId, name])
+  @@map("spaces")
+}
+
+model OperatingHours {
+  id        String  @id @default(cuid())
+  restaurantId String @map("restaurant_id")
+  dayOfWeek Int     @map("day_of_week")
+  isOpen    Boolean @default(true) @map("is_open")
+  openTime  String  @default("09:00") @map("open_time")
+  closeTime String  @default("22:00") @map("close_time")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@unique([restaurantId, dayOfWeek])
+  @@map("operating_hours")
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  type          String   @unique
+  name          String
+  description   String   @default("")
+  monthlyPrice  Float    @default(0) @map("monthly_price")
+  annualPrice   Float    @default(0) @map("annual_price")
+  currency      String   @default("NPR")
+  maxRestaurants Int     @default(1) @map("max_restaurants")
+  maxTables     Int      @default(10) @map("max_tables")
+  maxStaff      Int      @default(5) @map("max_staff")
+  maxMenuItems  Int      @default(50) @map("max_menu_items")
+  features      String[] @default([])
+  displayOrder  Int      @default(0) @map("display_order")
+  isPopular     Boolean  @default(false) @map("is_popular")
+  colorHex      String   @default("#6b7280") @map("color_hex")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  planId        String   @map("plan_id")
+  status        String   @default("ACTIVE")
+  startDate     DateTime @map("start_date")
+  endDate       DateTime @map("end_date")
+  autoRenew     Boolean  @default(true) @map("auto_renew")
+  billingCycle  String   @default("MONTHLY") @map("billing_cycle")
+  lastPaymentDate DateTime? @map("last_payment_date")
+  nextPaymentDate DateTime? @map("next_payment_date")
+  paymentMethod String?  @map("payment_method")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  plan       Plan       @relation(fields: [planId], references: [id])
+
+  @@index([restaurantId])
+  @@index([planId])
+  @@map("subscriptions")
+}
+
+model Staff {
+  id                  String    @id @default(cuid())
+  restaurantId        String    @map("restaurant_id")
+  firstName           String    @map("first_name")
+  lastName            String    @default("") @map("last_name")
+  email               String    @default("")
+  phoneNumber         String    @default("") @map("phone_number")
+  profileImage        String?   @map("profile_image")
+  role                String
+  status              String    @default("ACTIVE")
+  salary              Float     @default(0)
+  joinDate            DateTime  @default(now()) @map("join_date")
+  dateOfBirth         DateTime? @map("date_of_birth")
+  address             String?
+  identityDocType     String    @default("") @map("identity_doc_type")
+  identityDocImage    String?   @map("identity_doc_image")
+  emergencyContactName  String  @default("") @map("emergency_contact_name")
+  emergencyContactPhone String  @default("") @map("emergency_contact_phone")
+  bloodGroup          String    @default("") @map("blood_group")
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  shifts     Shift[]
+
+  @@index([restaurantId])
+  @@map("staff")
+}
+
+model RestaurantTable {
+  id              String   @id @default(cuid())
+  restaurantId    String   @map("restaurant_id")
+  tableNumber     Int      @map("table_number")
+  name            String?
+  qrCode          String   @default("") @map("qr_code")
+  qrCodeUrl       String?  @map("qr_code_url")
+  capacity        Int      @default(4)
+  shape           String   @default("SQUARE")
+  location        String?
+  space           String   @default("Space 1")
+  status          String   @default("AVAILABLE")
+  positionX       Float    @default(50) @map("position_x")
+  positionY       Float    @default(50) @map("position_y")
+  currentOrderId  String?  @map("current_order_id")
+  occupiedSince   DateTime? @map("occupied_since")
+  assignedWaiterId String? @map("assigned_waiter_id")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  orders       Order[]
+  reservations Reservation[]
+  barTabs      BarTab[]
+
+  @@unique([restaurantId, tableNumber])
+  @@map("tables")
+}
+
+model Category {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  name          String
+  description   String?
+  imageUrl      String?  @map("image_url")
+  displayOrder  Int      @default(0) @map("display_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  menuItems MenuItem[]
+  combos    Combo[]
+
+  @@index([restaurantId])
+  @@map("categories")
+}
+
+model Combo {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  name          String
+  menuSection   String?  @map("menu_section")
+  categoryId    String?  @map("category_id")
+  price         Float    @default(0)
+  offerPrice    Float    @default(0) @map("offer_price")
+  comboType     String?  @map("combo_type")
+  hsCode        String?  @map("hs_code")
+  /// Schedule 1 VAT-exempt goods (bill-design.md section 8.3). Excluded from
+  /// the taxable base entirely rather than zero-rated, in either pricing mode.
+  vatExempt     Boolean  @default(false) @map("vat_exempt")
+  prepTime      Int      @default(0) @map("prep_time")
+  imageUrl      String?  @map("image_url")
+  description   String?
+  items         Json     @default("[]")
+  isAvailable   Boolean  @default(true) @map("is_available")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  category   Category?  @relation(fields: [categoryId], references: [id])
+
+  @@index([restaurantId])
+  @@map("combos")
+}
+
+model MenuItem {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  categoryId    String   @map("category_id")
+  name          String
+  description   String?
+  imageUrl      String?  @map("image_url")
+  price         Float
+  discountPrice Float?   @map("discount_price")
+  menuSection   String?  @map("menu_section")
+  itemType      String   @default("FOOD") @map("item_type")
+  foodType      String   @default("VEG") @map("food_type")
+  subType       String   @default("VEG") @map("sub_type")
+  spiceLevel    String   @default("NONE") @map("spice_level")
+  allergens     String[] @default([])
+  prepTime      Int      @default(15) @map("prep_time")
+  calories      Int?
+  ingredients   String[] @default([])
+  temperature   String?  @default("COLD")
+  volume        Int?
+  sizeOptions   Json?    @map("size_options")
+  kotType       String?  @map("kot_type")
+  hsCode        String?  @map("hs_code")
+  /// Schedule 1 VAT-exempt goods (bill-design.md section 8.3). Excluded from
+  /// the taxable base entirely rather than zero-rated, in either pricing mode.
+  /// Copied onto OrderItem at order time so a later menu edit cannot
+  /// retroactively change the tax treatment of a bill already issued.
+  vatExempt     Boolean  @default(false) @map("vat_exempt")
+  isAvailable   Boolean  @default(true) @map("is_available")
+  displayOrder  Int      @default(0) @map("display_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id])
+  category    Category   @relation(fields: [categoryId], references: [id])
+  addOns      AddOn[]
+  orderItems  OrderItem[]
+
+  @@index([restaurantId, isAvailable])
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+model AddOn {
+  id          String  @id @default(cuid())
+  menuItemId  String  @map("menu_item_id")
+  name        String
+  description String?
+  price       Float   @default(0)
+  isAvailable Boolean @default(true) @map("is_available")
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([menuItemId])
+  @@map("add_ons")
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  restaurantId    String   @map("restaurant_id")
+  tableId         String?  @map("table_id")
+  orderId         String   @map("order_id")
+  orderType       String   @default("DINE_IN") @map("order_type")
+  status          String   @default("PENDING")
+  subtotal        Float    @default(0)
+  taxAmount       Float    @default(0) @map("tax_amount")
+  serviceCharge   Float    @default(0) @map("service_charge")
+  discountAmount  Float    @default(0) @map("discount_amount")
+  discountReason  String?  @map("discount_reason")
+  totalAmount     Float    @default(0) @map("total_amount")
+  assignedWaiterId String? @map("assigned_waiter_id")
+  /// Sequential per-restaurant kitchen-docket number, assigned on first print.
+  kotNumber       Int?     @map("kot_number")
+  customerName    String?  @map("customer_name")
+  customerPhone   String?  @map("customer_phone")
+  specialRequests String?  @map("special_requests")
+  voidedBy        String?  @map("voided_by")
+  voidReason      String?  @map("void_reason")
+  voidedAt        DateTime? @map("voided_at")
+  // Course firing
+  currentCourse   String   @default("STARTER") @map("current_course") // STARTER, MAIN, DESSERT, DRINKS
+  courseFiredAt   Json?    @map("course_fired_at") // { STARTER: ISODate, MAIN: ISODate, ... }
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  completedAt     DateTime? @map("completed_at")
+
+  restaurant  Restaurant  @relation(fields: [restaurantId], references: [id])
+  table       RestaurantTable? @relation(fields: [tableId], references: [id])
+  items       OrderItem[]
+  bills       Bill[]      @relation("BillAnchor")
+  /// Set once this order is rolled into a bill — the guard that stops a second
+  /// round being billed twice.
+  billId      String?     @map("bill_id")
+  bill        Bill?       @relation("BillOrders", fields: [billId], references: [id])
+  barTab      BarTab?
+
+  @@unique([restaurantId, orderId])
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, status])
+  @@index([tableId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String   @map("order_id")
+  menuItemId          String   @map("menu_item_id")
+  menuItemName        String   @map("menu_item_name")
+  quantity            Int      @default(1)
+  pricePerUnit        Float    @default(0) @map("price_per_unit")
+  /// Snapshot of MenuItem.vatExempt / Combo.vatExempt at the moment the item
+  /// was ordered. Denormalised deliberately: an IRD audit reads the bill as
+  /// issued, so editing the menu later must not restate the tax treatment of a
+  /// sale that already happened.
+  vatExempt           Boolean  @default(false) @map("vat_exempt")
+  /// Snapshot of the HS code, for the same reason.
+  hsCode              String?  @map("hs_code")
+  specialInstructions String?  @map("special_instructions")
+  addOnData           Json     @default("[]") @map("add_on_data")
+  status              String   @default("PENDING")
+  preparedAt          DateTime? @map("prepared_at")
+  servedAt            DateTime? @map("served_at")
+  voidedBy            String?  @map("voided_by")
+  voidReason          String?  @map("void_reason")
+  voidedAt            DateTime? @map("voided_at")
+  // Course firing
+  course              String   @default("MAIN") // STARTER, MAIN, DESSERT, DRINKS
+  firedAt             DateTime? @map("fired_at")
+  firedBy             String?  @map("fired_by")
+
+  order    Order    @relation(fields: [orderId], references: [id])
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
+
+model InventoryItem {
+  id              String   @id @default(cuid())
+  restaurantId    String   @map("restaurant_id")
+  name            String
+  description     String?
+  unit            String   @default("pieces")
+  currentQuantity Float    @default(0) @map("current_quantity")
+  reorderLevel    Float    @default(10) @map("reorder_level")
+  reorderQuantity Float    @default(20) @map("reorder_quantity")
+  unitCost        Float    @default(0) @map("unit_cost")
+  supplier        String?
+  status          String   @default("HEALTHY")
+  lastRestockDate DateTime? @map("last_restock_date")
+  expiryDate      DateTime? @map("expiry_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  restaurant     Restaurant          @relation(fields: [restaurantId], references: [id])
+  historyEntries InventoryHistory[]
+
+  @@index([restaurantId])
+  @@map("inventory_items")
+}
+
+model InventoryHistory {
+  id              String   @id @default(cuid())
+  inventoryItemId String   @map("inventory_item_id")
+  movementType    String   @map("movement_type")
+  quantity        Float
+  reason          String?
+  recordedBy      String   @map("recorded_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  item InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@index([inventoryItemId])
+  @@map("inventory_history")
+}
+
+model Bill {
+  id              String   @id @default(cuid())
+  restaurantId    String   @map("restaurant_id")
+  orderId         String   @map("order_id")
+  billNumber      String   @map("bill_number")
+
+  /// ── IRD Nepal compliance fields (see bill-design.md) ──
+  /// Nepali fiscal year this invoice belongs to, e.g. "2083/84". Serials reset
+  /// at Shrawan 1, so the sequence is only unique *within* a fiscal year.
+  fiscalYear      String?  @map("fiscal_year")
+  /// Sequence within (restaurantId, fiscalYear). Unbroken: a voided bill keeps
+  /// its number and is marked VOID rather than deleted, per the IRD audit trail
+  /// requirement. The compound unique below is what actually prevents duplicate
+  /// tax-invoice numbers under concurrent checkouts.
+  sequence        Int?
+  /// Bikram Sambat date as printed on the bill. billDate stays the AD value for
+  /// back-office reconciliation.
+  billDateBS      String?  @map("bill_date_bs")
+  /// "INCLUSIVE" or "ADDITIVE" - which pricing mode produced these figures.
+  /// Stored per bill because changing the outlet setting must not retroactively
+  /// reinterpret bills already issued.
+  pricingMode     String   @default("INCLUSIVE") @map("pricing_mode")
+  /// Rule 17(Ka) abbreviated invoice.
+  isAbbreviated   Boolean  @default(false) @map("is_abbreviated")
+  /// Schedule 1 exempt value, excluded from the taxable base.
+  exemptAmount    Float    @default(0) @map("exempt_amount")
+  /// Buyer block, mandatory above the configured threshold and for all B2B.
+  buyerName       String?  @map("buyer_name")
+  buyerPan        String?  @map("buyer_pan")
+  buyerAddress    String?  @map("buyer_address")
+  /// CBMS real-time e-billing sync state: PENDING | SYNCED | FAILED | NOT_REQUIRED.
+  /// Never blocks closing a ticket; queued and retried with backoff.
+  cbmsStatus      String   @default("NOT_REQUIRED") @map("cbms_status")
+  cbmsSyncedAt    DateTime? @map("cbms_synced_at")
+  cbmsAttempts    Int      @default(0) @map("cbms_attempts")
+  cbmsLastError   String?  @map("cbms_last_error")
+  /// Credit note / sales return pointing back at the original invoice.
+  creditNoteForId String?  @map("credit_note_for_id")
+
+  subtotal        Float    @default(0)
+  taxableAmount   Float    @default(0) @map("taxable_amount")
+  taxAmount       Float    @default(0) @map("tax_amount")
+  serviceCharge   Float    @default(0) @map("service_charge")
+  discountAmount  Float    @default(0) @map("discount_amount")
+  totalAmount     Float    @default(0) @map("total_amount")
+  amountPaid      Float    @default(0) @map("amount_paid")
+  change          Float    @default(0)
+  paymentMethod   String   @default("CASH") @map("payment_method")
+  paymentRef      String?  @map("payment_ref")
+  status          String   @default("PENDING")
+  billDate        DateTime @default(now()) @map("bill_date")
+  settledAt       DateTime? @map("settled_at")
+  createdBy       String   @map("created_by")
+  notes           String?
+  voidedBy        String?  @map("voided_by")
+  voidReason      String?  @map("void_reason")
+  voidedAt        DateTime? @map("voided_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  /// The order the bill was raised from. Kept as the anchor so existing
+  /// queries/joins keep working; `orders` is the full set it settles.
+  order      Order      @relation("BillAnchor", fields: [orderId], references: [id])
+  /// Every order this bill covers. A table's second round joins the open bill
+  /// instead of opening a new one, so a party pays once for all their rounds.
+  orders     Order[]    @relation("BillOrders")
+  payments   Payment[]
+
+  @@unique([restaurantId, billNumber])
+  /// Enforces the unbroken, non-reusable tax-invoice sequence at the DB level.
+  /// Application-side max()+1 races under concurrent checkouts; this is what
+  /// makes a duplicate serial impossible rather than merely unlikely.
+  @@unique([restaurantId, fiscalYear, sequence])
+  @@index([restaurantId, status])
+  @@index([restaurantId, billDate])
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, cbmsStatus])
+  @@index([orderId])
+  @@map("bills")
+}
+
+model BarTab {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  tableId       String?  @map("table_id")
+  orderId       String?  @unique @map("order_id")
+  name          String   // Customer name or "Walk-in"
+  phone         String?
+  status        String   @default("OPEN") // OPEN, CLOSED, TRANSFERRED
+  totalAmount   Float    @default(0) @map("total_amount")
+  paidAmount    Float    @default(0) @map("paid_amount")
+  createdBy     String   @map("created_by")
+  closedBy      String?  @map("closed_by")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  closedAt      DateTime? @map("closed_at")
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id])
+  table      RestaurantTable? @relation(fields: [tableId], references: [id])
+  order      Order?          @relation(fields: [orderId], references: [id])
+
+  @@index([restaurantId, status])
+  @@index([tableId])
+  @@map("bar_tabs")
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  recipientUserId String   @map("recipient_user_id")
+  restaurantId    String   @map("restaurant_id")
+  type            String
+  title           String
+  message         String
+  relatedEntityId String?  @map("related_entity_id")
+  relatedEntityType String? @map("related_entity_type")
+  isRead          Boolean  @default(false) @map("is_read")
+  readAt          DateTime? @map("read_at")
+  actionUrl       String?  @map("action_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [recipientUserId], references: [id])
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([recipientUserId, isRead])
+  @@index([restaurantId, createdAt])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  userId        String   @map("user_id")
+  actionType    String   @map("action_type")
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id")
+  changesBefore Json?    @map("changes_before")
+  changesAfter  Json?    @map("changes_after")
+  description   String
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId, createdAt])
+  @@map("activity_logs")
+}
+
+model KpiCard {
+  id          String   @id @default(cuid())
+  restaurantId String   @map("restaurant_id")
+  title       String
+  value       String
+  unit        String?
+  trend       String   @default("STABLE")
+  changePct   Float?   @map("change_pct")
+  icon        String?
+  color       String?
+  lastUpdated DateTime @default(now()) @map("last_updated")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId])
+  @@map("kpi_cards")
+}
+
+model Shift {
+  id                 String    @id @default(cuid())
+  restaurantId       String    @map("restaurant_id")
+  staffId            String    @map("staff_id")
+  openingFloat       Float     @map("opening_float")
+  closingCashDeclared Float?   @map("closing_cash_declared")
+  expectedCash       Float?    @map("expected_cash")
+  discrepancy        Float?
+  status             String    @default("OPEN")
+  openedAt           DateTime  @default(now()) @map("opened_at")
+  closedAt           DateTime? @map("closed_at")
+  notes              String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  staff      Staff      @relation(fields: [staffId], references: [id])
+
+  @@index([restaurantId, status])
+  @@index([staffId, status])
+  @@map("shifts")
+}
+
+model Payment {
+  id        String    @id @default(cuid())
+  billId    String    @map("bill_id")
+  method    String
+  amount    Float
+  reference String?
+  verified  Boolean   @default(false)
+  verifiedAt DateTime? @map("verified_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  bill Bill @relation(fields: [billId], references: [id])
+
+  @@index([billId])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model TaxRate {
+  id              String   @id @default(cuid())
+  restaurantId    String   @map("restaurant_id")
+  name            String
+  rate            Float
+  type            String   @default("VAT")
+  isDefault       Boolean  @default(false) @map("is_default")
+  appliesToItemTypes String[] @default([]) @map("applies_to_item_types")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId])
+  @@map("tax_rates")
+}
+
+model Reservation {
+  id            String    @id @default(cuid())
+  restaurantId  String    @map("restaurant_id")
+  customerName  String    @map("customer_name")
+  customerPhone String    @map("customer_phone")
+  partySize     Int       @map("party_size")
+  reservedFor   DateTime  @map("reserved_for")
+  tableId       String?   @map("table_id")
+  status        String    @default("BOOKED")
+  notes         String?
+  checkedInAt   DateTime? @map("checked_in_at")
+  occasion      String?   // BIRTHDAY, ANNIVERSARY, BUSINESS, DATE, OTHER
+  vip           Boolean   @default(false)
+  depositAmount Float     @default(0) @map("deposit_amount")
+  depositPaid   Boolean   @default(false) @map("deposit_paid")
+  source        String    @default("PHONE") // ONLINE, PHONE, WALKIN, IN_PERSON
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id])
+  table      RestaurantTable? @relation(fields: [tableId], references: [id])
+
+  @@index([restaurantId, reservedFor])
+  @@index([tableId])
+  @@map("reservations")
+}
+
+model WaitlistEntry {
+  id                String    @id @default(cuid())
+  restaurantId      String    @map("restaurant_id")
+  customerName      String    @map("customer_name")
+  customerPhone     String    @map("customer_phone")
+  partySize         Int       @map("party_size")
+  quotedWaitMinutes Int?      @map("quoted_wait_minutes")
+  status            String    @default("WAITING")
+  notifiedAt        DateTime? @map("notified_at")
+  seatedAt          DateTime? @map("seated_at")
+  notifyMethod      String?   @default("SMS") @map("notify_method") // SMS, PUSH, CALL
+  estimatedReadyAt  DateTime? @map("estimated_ready_at")
+  priority          Int       @default(0) // Higher = more urgent
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId, status])
+  @@map("waitlist_entries")
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  name          String
+  phone         String
+  email         String?
+  dietaryNotes  String?  @map("dietary_notes")
+  allergens     String[] @default([]) @map("allergens") // e.g., ["NUTS", "SHELLFISH", "GLUTEN"]
+  preferences   Json?    @map("preferences") // { favoriteTable: "5", seatingPref: "BOOTH", spiceLevel: "MEDIUM" }
+  loyaltyPoints Int      @default(0) @map("loyalty_points")
+  visitCount    Int      @default(0) @map("visit_count")
+  totalSpent    Float    @default(0) @map("total_spent")
+  lastVisitAt   DateTime? @map("last_visit_at")
+  tags          String[] @default([]) // VIP, BIRTHDAY, ANNIVERSARY, REGULAR, ALLERGY_ALERT
+  favoriteItems String[] @default([]) @map("favorite_items")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@unique([restaurantId, phone])
+  @@map("customers")
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  restaurantId  String   @map("restaurant_id")
+  code          String
+  discountType  String   @map("discount_type")
+  discountValue Float    @map("discount_value")
+  validFrom     DateTime @map("valid_from")
+  validUntil    DateTime @map("valid_until")
+  usageLimit    Int?     @map("usage_limit")
+  usageCount    Int      @default(0) @map("usage_count")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@unique([restaurantId, code])
+  @@map("coupons")
+}
+
+model CorporateAccount {
+  id             String   @id @default(cuid())
+  restaurantId   String   @map("restaurant_id")
+  companyName    String   @map("company_name")
+  contactName    String?  @map("contact_name")
+  contactPhone   String?  @map("contact_phone")
+  billingAddress String?  @map("billing_address")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId])
+  @@map("corporate_accounts")
+}
+
+// Generic platform-level key/value settings store, used by the superadmin
+// panel (System Health alert channels, Settings security/API config) so
+// toggles persist across reloads instead of living only in client state.
+model PlatformSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+// Platform-level subscription discount codes, managed from the superadmin
+// Subscriptions > Promo Code Management panel.
+model PromoCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  discountType  String    @default("percentage") @map("discount_type")
+  discountValue Float     @map("discount_value")
+  usageLimit    Int?      @map("usage_limit")
+  usageCount    Int       @default(0) @map("usage_count")
+  isActive      Boolean   @default(true) @map("is_active")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@map("promo_codes")
+}
+
+model SupportTicket {
+  id           String   @id @default(cuid())
+  restaurantId String   @map("restaurant_id")
+  userId       String   @map("user_id")
+  subject      String
+  message      String
+  imageUrl     String?  @map("image_url")
+  status       String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+
+  replies TicketReply[]
+
+  @@index([restaurantId, createdAt])
+  @@map("support_tickets")
+}
+
+model TicketReply {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  role      String   // OWNER, SUPERADMIN
+  message   String
+  imageUrl  String?  @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_replies")
+}
+
+/// Controls what the printed customer bill contains and how it is laid out.
+/// Every toggle here is read by the invoice renderer, so the format can be
+/// changed from Settings instead of in code.
+model InvoiceSetting {
+  id                 String   @id @default(cuid())
+  restaurantId       String   @unique @map("restaurant_id")
+
+  /// Heading shown at the top of the bill, e.g. "TAX INVOICE".
+  invoiceType        String   @default("Tax Invoice") @map("invoice_type")
+  legalName          String   @default("") @map("legal_name")
+  address            String   @default("")
+  contactNumber      String   @default("") @map("contact_number")
+  taxNumber          String   @default("") @map("tax_number")
+  logoUrl            String?  @map("logo_url")
+  fontSize           Int      @default(9) @map("font_size")
+
+  // Heading fields
+  showInvoiceNo      Boolean  @default(true) @map("show_invoice_no")
+  showDate           Boolean  @default(true) @map("show_date")
+  showOrderType      Boolean  @default(true) @map("show_order_type")
+  showTime           Boolean  @default(false) @map("show_time")
+  showEstimateDetail Boolean  @default(false) @map("show_estimate_detail")
+
+  // Line-item columns
+  showSN             Boolean  @default(false) @map("show_sn")
+  showHSCode         Boolean  @default(false) @map("show_hs_code")
+  showParticular     Boolean  @default(true) @map("show_particular")
+  showRate           Boolean  @default(true) @map("show_rate")
+  showQty            Boolean  @default(true) @map("show_qty")
+  showAmount         Boolean  @default(true) @map("show_amount")
+
+  // Subtotal pipeline
+  enableDishDiscount     Boolean @default(false) @map("enable_dish_discount")
+  enableLoyaltyDiscount  Boolean @default(false) @map("enable_loyalty_discount")
+  enableDiscount         Boolean @default(true)  @map("enable_discount")
+  enableServiceCharge    Boolean @default(false) @map("enable_service_charge")
+  showDiscountPercentage Boolean @default(true)  @map("show_discount_percentage")
+  enableTax              Boolean @default(true)  @map("enable_tax")
+
+  // Footer fields
+  showPaymentMode    Boolean  @default(true) @map("show_payment_mode")
+  showBilledBy       Boolean  @default(true) @map("show_billed_by")
+  showKotNumber      Boolean  @default(true) @map("show_kot_number")
+  showAssign         Boolean  @default(false) @map("show_assign")
+  showTenderAmount   Boolean  @default(true) @map("show_tender_amount")
+  showInWords        Boolean  @default(true) @map("show_in_words")
+  showServiceDuration Boolean @default(false) @map("show_service_duration")
+
+  qrEnabled          Boolean  @default(false) @map("qr_enabled")
+  qrFileName         String   @default("") @map("qr_file_name")
+  qrImageUrl         String?  @map("qr_image_url")
+
+  footerHeader       String   @default("Thank You") @map("footer_header")
+  footerRemarks      String   @default("Thank you for your visit! Visit again") @map("footer_remarks")
+  /// Which button the checkout screen makes primary.
+  checkoutAction     String   @default("CONFIRM") @map("checkout_action")
+
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@map("invoice_settings")
+}
+
+/// Controls the kitchen docket layout and the reprint rules around it.
+model KotSetting {
+  id                String   @id @default(cuid())
+  restaurantId      String   @unique @map("restaurant_id")
+
+  // Heading fields
+  showKotNo         Boolean  @default(true)  @map("show_kot_no")
+  showOrderType     Boolean  @default(true)  @map("show_order_type")
+  showTable         Boolean  @default(true)  @map("show_table")
+  showOrderBy       Boolean  @default(true)  @map("show_order_by")
+  showTime          Boolean  @default(true)  @map("show_time")
+  tableAsSubHeading Boolean  @default(true)  @map("table_as_sub_heading")
+
+  // Line-item columns
+  showSN            Boolean  @default(true)  @map("show_sn")
+  showDishes        Boolean  @default(true)  @map("show_dishes")
+  showQty           Boolean  @default(true)  @map("show_qty")
+  showTotal         Boolean  @default(true)  @map("show_total")
+
+  fontSize          Int      @default(9)  @map("font_size")
+  /// Copies printed by Confirm & Print.
+  printCount        Int      @default(1)  @map("print_count")
+  compactView       Boolean  @default(false) @map("compact_view")
+  printOnCancel     Boolean  @default(true)  @map("print_on_cancel")
+  printOnUpdate     Boolean  @default(true)  @map("print_on_update")
+
+  // Footer
+  showKotRemarks    Boolean  @default(true)  @map("show_kot_remarks")
+  showDishRemarks   Boolean  @default(true)  @map("show_dish_remarks")
+  showPrintedBy     Boolean  @default(true)  @map("show_printed_by")
+  showPrintedAt     Boolean  @default(true)  @map("show_printed_at")
+  footerText        String   @default("Thank You!") @map("footer_text")
+  /// KOT_FOOTER | BELOW_DISH
+  dishRemarksPosition String @default("KOT_FOOTER") @map("dish_remarks_position")
+
+  orderAction       String   @default("CONFIRM") @map("order_action")
+  cancelAction      String   @default("CANCEL")  @map("cancel_action")
+  editAction        String   @default("UPDATE")  @map("edit_action")
+  /// Reset the KOT counter automatically when the daybook closes.
+  autoResetWithDaybook Boolean @default(false) @map("auto_reset_with_daybook")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@map("kot_settings")
+}
+
+/// Free-form per-restaurant preferences (notification priorities, printer
+/// behaviour, enabled integrations). Stored as JSON because callers add new
+/// keys freely — the previous raw-SQL table required a column per key and was
+/// never actually created.
+model RestaurantSetting {
+  id           String   @id @default(cuid())
+  restaurantId String   @unique @map("restaurant_id")
+  data         Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@map("restaurant_settings_kv")
+}

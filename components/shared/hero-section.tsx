@@ -1,0 +1,228 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Play, Check, ArrowRight, Star, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+export function HeroSection() {
+  const [showVideo, setShowVideo] = useState(false);
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.12, delayChildren: 0.15 },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 24 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+    },
+  };
+
+  return (
+    <section className="relative min-h-[auto] overflow-hidden bg-gradient-to-b from-primary to-primary-hover">
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid items-center gap-6 pt-24 pb-10 sm:pt-28 sm:pb-12 lg:grid-cols-[1fr_0.85fr] lg:pt-32 lg:pb-16 lg:gap-16">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-5 sm:space-y-6"
+          >
+            <motion.div variants={itemVariants}>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.09] px-3 py-1 text-xs sm:text-xs font-medium text-white/90 backdrop-blur-md">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+                </span>
+                Built in Nepal · trusted by 500+ kitchens
+              </span>
+            </motion.div>
+
+            <motion.h1
+              variants={itemVariants}
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-[4.25rem] font-bold leading-[1.1] tracking-tight text-white max-w-[600px]"
+            >
+              The whole restaurant.{' '}
+              <span className="relative inline-block whitespace-nowrap">
+                One screen.
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 320 12"
+                  preserveAspectRatio="none"
+                  className="absolute left-0 -bottom-1 h-2.5 w-full sm:-bottom-2 sm:h-3"
+                  fill="none"
+                >
+                  <path
+                    d="M3 8C60 3 120 3 180 7C240 11 285 9 317 4"
+                    stroke="#F4B740"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </motion.h1>
+
+            <motion.p
+              variants={itemVariants}
+              className="text-base sm:text-base lg:text-lg text-white/85 max-w-[480px] leading-relaxed"
+            >
+              Orders, kitchen tickets, billing, inventory. Your whole team on the
+              same page, even when the wifi drops. Made in Nepal, for Nepal.
+            </motion.p>
+
+            <motion.div variants={itemVariants} className="flex flex-col gap-2 pt-0.5 sm:gap-2.5 sm:pt-1">
+              <Link href="/register" className="w-full sm:w-auto">
+                <Button
+                  size="lg"
+                  className="group w-full h-11 sm:h-12 rounded-xl bg-white px-5 text-[15px] sm:text-[15px] font-semibold text-primary shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all hover:bg-white/95"
+                >
+                  Start Free Trial
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => setShowVideo(true)}
+                className="w-full sm:w-auto h-11 sm:h-12 rounded-xl border border-white/15 bg-white/[0.06] px-5 text-[15px] sm:text-[15px] font-medium text-white/90 backdrop-blur-sm transition-all hover:border-white/25 hover:bg-white/[0.12]"
+              >
+                <Play className="mr-2 h-4 w-4 fill-current" />
+                Watch Demo
+              </Button>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="flex items-center gap-3 sm:gap-5 pt-1">
+              <div className="flex items-center gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="h-3.5 w-3.5 sm:h-3.5 sm:w-3.5 fill-rating text-rating" />
+                ))}
+              </div>
+              <p className="text-sm sm:text-sm text-white/80">
+                <span className="font-semibold text-white">4.9/5</span> from owners who ditched the paper khata
+              </p>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-5"
+            >
+              {['Free forever', 'No credit card', 'Ready before the evening rush'].map((item) => (
+                <div key={item} className="flex items-center gap-1.5 text-xs sm:text-xs text-white/80">
+                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-brand" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+
+          <motion.div
+            variants={itemVariants}
+            initial="hidden"
+            animate="visible"
+            className="hidden lg:block"
+          >
+            <div className="relative mx-auto w-full max-w-[400px] lg:rotate-[2.5deg] lg:transition-transform lg:duration-500 lg:hover:rotate-0">
+              <div className="absolute -inset-8 rounded-[3rem] bg-gradient-to-br from-white/[0.06] via-brand/[0.04] to-transparent blur-3xl" />
+              <div className="relative overflow-hidden rounded-2xl border border-white/[0.12] bg-white/[0.06] p-2.5 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] backdrop-blur-2xl">
+                <div className="rounded-[1.25rem] border border-white/[0.1] bg-gradient-to-br from-sidebar-raised via-sidebar to-sidebar p-5 text-white">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-widest text-white/70">Dashboard</p>
+                      <p className="text-sm font-semibold">Today&apos;s Overview</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium">
+                      <span className="h-1.5 w-1.5 rounded-full bg-sidebar-accent" />
+                      Live
+                    </span>
+                  </div>
+
+                  <div className="mb-3 grid grid-cols-2 gap-2.5">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.08] p-3">
+                      <p className="text-xs font-medium uppercase tracking-widest text-white/70">Revenue</p>
+                      <p className="mt-1 text-xl font-bold">Rs. 47,320</p>
+                      <p className="mt-0.5 text-xs font-medium text-sidebar-accent">↑ 9%</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.08] p-3">
+                      <p className="text-xs font-medium uppercase tracking-widest text-white/70">Orders</p>
+                      <p className="mt-1 text-xl font-bold">218</p>
+                      <p className="mt-0.5 text-xs font-medium text-sidebar-accent">↑ 14%</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-white/[0.08] p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-medium uppercase tracking-widest text-white/70">Weekly Orders</p>
+                      <p className="text-xs font-medium text-white/70">This week</p>
+                    </div>
+                    <div className="flex h-16 items-end gap-1">
+                      {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
+                        <div key={i} className="flex-1 rounded-t bg-white/30" style={{ height: `${h}%` }} />
+                      ))}
+                    </div>
+                    <div className="mt-1 flex justify-between text-xs text-white/70">
+                      {['M','T','W','T','F','S','S'].map((d, i) => <span key={i}>{d}</span>)}
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 rounded-xl border border-white/10 bg-white/[0.08] p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-widest text-white/70">Active Tables</p>
+                        <p className="text-base font-bold">18 / 24</p>
+                      </div>
+                      <div className="h-10 w-10 rounded-full border-2 border-white/20 flex items-center justify-center">
+                        <span className="text-xs font-bold text-white/80">75%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Video Modal */}
+      {showVideo && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setShowVideo(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="relative w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowVideo(false)}
+              className="absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-all backdrop-blur-sm"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="aspect-video bg-black flex items-center justify-center">
+              <div className="text-center p-8">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
+                  <Play className="h-8 w-8 text-white ml-1" />
+                </div>
+                <p className="text-white/70 text-sm">Product demo video coming soon</p>
+                <p className="text-white/70 text-xs mt-1">In the meantime, start your free trial above</p>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </section>
+  );
+}

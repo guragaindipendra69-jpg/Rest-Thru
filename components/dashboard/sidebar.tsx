@@ -1,0 +1,252 @@
+'use client';
+
+import React, { useMemo, memo, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  UtensilsCrossed,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  LayoutDashboard,
+  ClipboardList,
+  BookOpen,
+  Users,
+  Package,
+  BarChart3,
+  Settings,
+  LogOut,
+  ScrollText,
+  ShoppingCart,
+  PlusCircle,
+  LayoutGrid,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { SharedNavLink } from '@/components/shared/nav-link';
+import { NavGroup, type NavGroupItem } from '@/components/shared/nav-group';
+import type { NavItem } from '@/components/shared/nav-link';
+import { useUIStore } from '@/store/ui-store';
+import { useAuthStore } from '@/store/auth-store';
+import { cn } from '@/lib/utils';
+
+// A nav entry is either a plain link or a collapsible group with children.
+type OwnerNavEntry = NavItem & { children?: NavGroupItem['children'] };
+
+const NAV_ITEMS: OwnerNavEntry[] = [
+  { label: 'Dashboard',          href: '/owner',                Icon: LayoutDashboard },
+  { label: 'New Order',          href: '/owner/order',          Icon: PlusCircle      },
+  { label: 'Orders',             href: '/owner/orders',         Icon: ShoppingCart    },
+  {
+    label: 'Menu',
+    href: '/owner/menu',
+    Icon: BookOpen,
+    children: [
+      { label: 'Dishes',      href: '/owner/menu' },
+      { label: 'Category',    href: '/owner/menu/category' },
+      { label: 'Combo Offer', href: '/owner/menu/combo' },
+    ],
+  },
+  {
+    label: 'Tables',
+    href: '/owner/tables',
+    Icon: LayoutGrid,
+    // No "Space" entry: spaces are an attribute of a table, not a section of
+    // their own, so they are managed from the table board itself.
+    children: [
+      { label: 'Table',     href: '/owner/tables' },
+      { label: 'QR Codes',  href: '/owner/tables/qr' },
+    ],
+  },
+  { label: 'Staff Management',   href: '/owner/staff',          Icon: Users           },
+  { label: 'Inventory',          href: '/owner/inventory',      Icon: Package         },
+  { label: 'Reports & Analytics',href: '/owner/reports',        Icon: BarChart3       },
+  { label: 'Logs',               href: '/owner/logs',           Icon: ScrollText      },
+  { label: 'Settings',           href: '/owner/settings',       Icon: Settings        },
+];
+
+// ── Main sidebar — memo prevents re-render when parent re-renders
+//    for reasons unrelated to sidebar state.
+const Sidebar = memo(function Sidebar() {
+  const pathname = usePathname();
+  const { sidebarCollapsed, toggleSidebar, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const { user, restaurant, logout } = useAuthStore();
+
+  // Close the mobile drawer on navigation.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname, setMobileMenuOpen]);
+
+  // The desktop "collapsed" (icons-only) appearance must never apply while the
+  // mobile drawer is open — a drawer always shows full labels.
+  const collapsed = sidebarCollapsed && !mobileMenuOpen;
+
+  const userInitials = useMemo(() => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
+    }
+    return 'U';
+  }, [user?.firstName, user?.lastName]);
+
+  // Stable isActive — uses useCallback so NavLink memo comparisons work.
+  const isActive = useCallback(
+    (href: string) => {
+      if (href === '/owner') return pathname === '/owner';
+      return pathname === href || pathname.startsWith(href + '/');
+    },
+    [pathname]
+  );
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      {/* Mobile drawer backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          'fixed left-0 top-0 h-screen flex flex-col z-50',
+          'bg-gradient-sidebar border-r border-sidebar-border',
+          // Mobile: off-canvas drawer that slides in; always full-width labels.
+          'w-[248px] transition-transform duration-300 ease-in-out',
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+          // Desktop: always on-screen, width collapses to icons.
+          'md:translate-x-0 md:transition-[width]',
+          sidebarCollapsed ? 'md:w-[68px]' : 'md:w-[248px]'
+        )}
+      >
+        {/* ── Logo ── */}
+        <div
+          className={cn(
+            'flex items-center gap-3 px-4 h-16 border-b border-sidebar-border flex-shrink-0',
+            collapsed && 'justify-center px-0'
+          )}
+        >
+          <div className="flex-shrink-0 bg-primary/15 p-1.5 rounded-lg">
+            <UtensilsCrossed className="h-5 w-5 text-primary" />
+          </div>
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">Resthru</p>
+                <p className="text-xs text-sidebar-muted truncate">
+                  {restaurant?.name || 'My Restaurant'}
+                </p>
+              </div>
+              <Badge className="bg-primary/20 text-primary border-0 text-[10px] px-1.5 py-0 h-4 flex-shrink-0">
+                Pro
+              </Badge>
+            </>
+          )}
+        </div>
+
+        {/* ── Navigation ── */}
+        <nav
+          className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          {NAV_ITEMS.map((item) =>
+            item.children ? (
+              <NavGroup
+                key={item.label}
+                item={item}
+                collapsed={collapsed}
+                pathname={pathname}
+              />
+            ) : (
+              <SharedNavLink
+                key={item.href}
+                item={item}
+                active={isActive(item.href)}
+                collapsed={collapsed}
+              />
+            )
+          )}
+        </nav>
+
+        {/* ── Bottom: user + collapse ── */}
+        <div className="flex-shrink-0 border-t border-sidebar-border p-2 space-y-1">
+          {!collapsed ? (
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-sidebar-raised">
+              <Avatar className="h-7 w-7 flex-shrink-0">
+                <AvatarFallback className="bg-primary/30 text-primary text-[11px] font-bold">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white truncate">
+                  {user?.firstName
+                    ? `${user.firstName} ${user.lastName}`
+                    : 'Account'}
+                </p>
+                <p className="text-[11px] text-sidebar-muted truncate">
+                  {user?.role === 'RESTAURANT_OWNER' || user?.role === 'STAFF' ? 'Owner' : user?.role || 'Owner'}
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={logout}
+                    className="h-7 w-7 text-sidebar-muted hover:text-sidebar-danger hover:bg-sidebar-danger/10 flex-shrink-0"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Logout</TooltipContent>
+              </Tooltip>
+            </div>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={logout}
+                  className="w-10 h-10 mx-auto flex text-sidebar-muted hover:text-sidebar-danger hover:bg-sidebar-danger/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Logout</TooltipContent>
+            </Tooltip>
+          )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleSidebar}
+            className={cn(
+              'hidden md:flex w-full h-8 text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-raised transition-colors',
+              sidebarCollapsed && 'px-0 justify-center'
+            )}
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <span className="flex items-center gap-2 text-[11px]">
+                <ChevronLeft className="h-4 w-4" />
+                Collapse
+              </span>
+            )}
+          </Button>
+        </div>
+      </aside>
+    </TooltipProvider>
+  );
+});
+
+export default Sidebar;

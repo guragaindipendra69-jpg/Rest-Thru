@@ -1,0 +1,86 @@
+-- Invoice + KOT print configuration, one row per restaurant.
+CREATE TABLE IF NOT EXISTS "invoice_settings" (
+  "id" TEXT NOT NULL,
+  "restaurant_id" TEXT NOT NULL,
+  "invoice_type" TEXT NOT NULL DEFAULT 'Tax Invoice',
+  "legal_name" TEXT NOT NULL DEFAULT '',
+  "address" TEXT NOT NULL DEFAULT '',
+  "contact_number" TEXT NOT NULL DEFAULT '',
+  "tax_number" TEXT NOT NULL DEFAULT '',
+  "logo_url" TEXT,
+  "font_size" INTEGER NOT NULL DEFAULT 9,
+  "show_invoice_no" BOOLEAN NOT NULL DEFAULT true,
+  "show_date" BOOLEAN NOT NULL DEFAULT true,
+  "show_order_type" BOOLEAN NOT NULL DEFAULT true,
+  "show_time" BOOLEAN NOT NULL DEFAULT false,
+  "show_estimate_detail" BOOLEAN NOT NULL DEFAULT false,
+  "show_sn" BOOLEAN NOT NULL DEFAULT false,
+  "show_hs_code" BOOLEAN NOT NULL DEFAULT false,
+  "show_particular" BOOLEAN NOT NULL DEFAULT true,
+  "show_rate" BOOLEAN NOT NULL DEFAULT true,
+  "show_qty" BOOLEAN NOT NULL DEFAULT true,
+  "show_amount" BOOLEAN NOT NULL DEFAULT true,
+  "enable_dish_discount" BOOLEAN NOT NULL DEFAULT false,
+  "enable_loyalty_discount" BOOLEAN NOT NULL DEFAULT false,
+  "enable_discount" BOOLEAN NOT NULL DEFAULT true,
+  "enable_service_charge" BOOLEAN NOT NULL DEFAULT false,
+  "show_discount_percentage" BOOLEAN NOT NULL DEFAULT true,
+  "enable_tax" BOOLEAN NOT NULL DEFAULT true,
+  "show_payment_mode" BOOLEAN NOT NULL DEFAULT true,
+  "show_billed_by" BOOLEAN NOT NULL DEFAULT true,
+  "show_kot_number" BOOLEAN NOT NULL DEFAULT true,
+  "show_assign" BOOLEAN NOT NULL DEFAULT false,
+  "show_tender_amount" BOOLEAN NOT NULL DEFAULT true,
+  "show_in_words" BOOLEAN NOT NULL DEFAULT true,
+  "show_service_duration" BOOLEAN NOT NULL DEFAULT false,
+  "qr_enabled" BOOLEAN NOT NULL DEFAULT false,
+  "qr_file_name" TEXT NOT NULL DEFAULT '',
+  "qr_image_url" TEXT,
+  "footer_header" TEXT NOT NULL DEFAULT 'Thank You',
+  "footer_remarks" TEXT NOT NULL DEFAULT 'Thank you for your visit! Visit again',
+  "checkout_action" TEXT NOT NULL DEFAULT 'CONFIRM',
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "invoice_settings_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "kot_settings" (
+  "id" TEXT NOT NULL,
+  "restaurant_id" TEXT NOT NULL,
+  "show_kot_no" BOOLEAN NOT NULL DEFAULT true,
+  "show_order_type" BOOLEAN NOT NULL DEFAULT true,
+  "show_table" BOOLEAN NOT NULL DEFAULT true,
+  "show_order_by" BOOLEAN NOT NULL DEFAULT true,
+  "show_time" BOOLEAN NOT NULL DEFAULT true,
+  "table_as_sub_heading" BOOLEAN NOT NULL DEFAULT true,
+  "show_sn" BOOLEAN NOT NULL DEFAULT true,
+  "show_dishes" BOOLEAN NOT NULL DEFAULT true,
+  "show_qty" BOOLEAN NOT NULL DEFAULT true,
+  "show_total" BOOLEAN NOT NULL DEFAULT true,
+  "font_size" INTEGER NOT NULL DEFAULT 9,
+  "print_count" INTEGER NOT NULL DEFAULT 1,
+  "compact_view" BOOLEAN NOT NULL DEFAULT false,
+  "print_on_cancel" BOOLEAN NOT NULL DEFAULT true,
+  "print_on_update" BOOLEAN NOT NULL DEFAULT true,
+  "show_kot_remarks" BOOLEAN NOT NULL DEFAULT true,
+  "show_dish_remarks" BOOLEAN NOT NULL DEFAULT true,
+  "show_printed_by" BOOLEAN NOT NULL DEFAULT true,
+  "show_printed_at" BOOLEAN NOT NULL DEFAULT true,
+  "footer_text" TEXT NOT NULL DEFAULT 'Thank You!',
+  "dish_remarks_position" TEXT NOT NULL DEFAULT 'KOT_FOOTER',
+  "order_action" TEXT NOT NULL DEFAULT 'CONFIRM',
+  "cancel_action" TEXT NOT NULL DEFAULT 'CANCEL',
+  "edit_action" TEXT NOT NULL DEFAULT 'UPDATE',
+  "auto_reset_with_daybook" BOOLEAN NOT NULL DEFAULT false,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "kot_settings_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "invoice_settings_restaurant_id_key" ON "invoice_settings"("restaurant_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "kot_settings_restaurant_id_key" ON "kot_settings"("restaurant_id");
+
+ALTER TABLE "invoice_settings" ADD CONSTRAINT "invoice_settings_restaurant_id_fkey"
+  FOREIGN KEY ("restaurant_id") REFERENCES "restaurants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "kot_settings" ADD CONSTRAINT "kot_settings_restaurant_id_fkey"
+  FOREIGN KEY ("restaurant_id") REFERENCES "restaurants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
