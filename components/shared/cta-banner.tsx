@@ -42,7 +42,7 @@ export function CtaBanner() {
             <Link href="/register">
               <Button
                 size="lg"
-                className="group h-12 rounded-xl bg-white px-8 text-[15px] font-semibold text-primary shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all hover:bg-white/95"
+                className="group h-12 rounded-xl bg-white px-8 text-[15px] font-semibold text-primary shadow-[0_8px_30px_-6px_rgba(0,0,0,0.3)] transition-all hover:bg-white hover:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.42)]"
               >
                 Start Free Trial
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />

@@ -40,7 +40,7 @@ const restaurants = [
 
 export function SocialProofBar() {
   return (
-    <section className="relative border-y border-border/40 bg-background/80 py-8 sm:py-10">
+    <section aria-label="Results from restaurants using Resthru" className="relative border-y border-border/40 bg-background/80 py-8 sm:py-10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 12 }}

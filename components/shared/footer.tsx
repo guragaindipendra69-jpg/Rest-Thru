@@ -64,8 +64,14 @@ const Footer = () => {
         {/* Link columns: 2 cols on mobile, 4 on md */}
         <div className="grid grid-cols-2 gap-8 sm:gap-10 md:grid-cols-4">
           {Object.values(footerSections).map((section) => (
-            <div key={section.title}>
-              <h3 className="mb-3 sm:mb-4 text-xs sm:text-sm font-semibold text-white uppercase tracking-wider">
+            // Each column is a nav landmark labelled by its own heading, so
+            // assistive tech and crawlers read four named link groups rather
+            // than one undifferentiated list of every footer link.
+            <nav key={section.title} aria-labelledby={`footer-${section.title.toLowerCase().replace(/\s+/g, '-')}`}>
+              <h3
+                id={`footer-${section.title.toLowerCase().replace(/\s+/g, '-')}`}
+                className="mb-3 sm:mb-4 text-xs sm:text-sm font-semibold text-white uppercase tracking-wider"
+              >
                 {section.title}
               </h3>
               <ul className="space-y-2 sm:space-y-3">
@@ -80,7 +86,7 @@ const Footer = () => {
                   </li>
                 ))}
               </ul>
-            </div>
+            </nav>
           ))}
         </div>
       </div>

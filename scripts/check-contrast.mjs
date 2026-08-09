@@ -186,6 +186,13 @@ const PAIRS = [
   ['white/80', 'primary-deep', 4.5, 'auth panel caption (darkest stop)'],
   ['white', 'primary', 4.5, 'auth panel heading'],
 
+  // Hero and CTA primary buttons: white surface, primary ink, on the dark
+  // gradient. Recorded because these hovered to bg-white/95, which let the dark
+  // backdrop bleed through and dropped the ink contrast exactly while the
+  // pointer was on the control. Hover now moves to elevation and the surface
+  // stays fully opaque, so the resting pair below is also the hovered pair.
+  ['primary', 'white', 4.5, 'hero + CTA primary button (idle and hover)'],
+
   // Non-text boundaries: WCAG 1.4.11 sets 3:1 for these.
   ['ring', 'background', 3, 'focus ring on canvas'],
   ['ring', 'card', 3, 'focus ring on card'],
