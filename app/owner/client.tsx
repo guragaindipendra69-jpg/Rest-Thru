@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useTransition, useCallback, useEffect } from "react";
+import { useState, useTransition, useCallback, useEffect, useMemo } from "react";
 import { useAuthStore } from "@/store/auth-store";
 import { formatCurrency, formatRelativeTime } from "@/lib/format";
 import { getGreeting } from "@/lib/helpers";
@@ -126,6 +126,26 @@ export default function DashboardClient({
     const interval = setInterval(poll, 15_000);
     return () => clearInterval(interval);
   }, [restaurantId]);
+
+  // The Table Overview legend counts every table exactly once. It used to run
+  // three independent `=== "AVAILABLE" | "OCCUPIED" | "RESERVED"` filters, and
+  // `RestaurantTable.status` is a bare String column with no enum behind it, so
+  // a row holding anything else fell out of all three buckets and simply
+  // vanished from the legend. The stat card above counts `status != AVAILABLE`
+  // and so read that same row as occupied - the dashboard reported "1 occupied"
+  // next to "0 Occupied" and a legend summing to 4 of 5 tables. The write path
+  // now normalises and rejects unknown statuses (lib/actions/tables.ts), but
+  // pre-existing rows still exist, so keep the counts total here: compare
+  // case-insensitively and surface the remainder as "Other".
+  const tableStatusCounts = useMemo(() => {
+    const counts = { AVAILABLE: 0, OCCUPIED: 0, RESERVED: 0, OTHER: 0 };
+    for (const table of liveTables) {
+      const key = String(table.status ?? "").trim().toUpperCase();
+      if (key === "AVAILABLE" || key === "OCCUPIED" || key === "RESERVED") counts[key]++;
+      else counts.OTHER++;
+    }
+    return counts;
+  }, [liveTables]);
 
   const statusColors: Record<string, string> = {
     PENDING: "bg-warning",
@@ -357,31 +377,44 @@ export default function DashboardClient({
                       red, rest green) with no link to which physical table was
                       actually occupied. */}
                   <div className="grid grid-cols-5 gap-2 mb-6">
-                    {liveTables.map((table) => (
-                      <div
-                        key={table.id}
-                        title={`Table ${table.tableNumber} — ${table.status.charAt(0) + table.status.slice(1).toLowerCase()}`}
-                        className={`aspect-square rounded-lg flex items-center justify-center text-xs font-bold ${
-                          TABLE_STATUS_STYLES[table.status] ?? "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {table.tableNumber}
-                      </div>
-                    ))}
+                    {liveTables.map((table) => {
+                      // Normalise for lookup and display for the same reason the
+                      // legend does - the column is not constrained to these
+                      // three values, and a lowercase row should still show its
+                      // real colour rather than falling through to grey.
+                      const status = String(table.status ?? "").trim().toUpperCase();
+                      return (
+                        <div
+                          key={table.id}
+                          title={`Table ${table.tableNumber} — ${status.charAt(0) + status.slice(1).toLowerCase()}`}
+                          className={`aspect-square rounded-lg flex items-center justify-center text-xs font-bold ${
+                            TABLE_STATUS_STYLES[status] ?? "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {table.tableNumber}
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground border-t pt-4">
                     <span className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-success rounded-sm" />
-                      {liveTables.filter((t) => t.status === "AVAILABLE").length} Available
+                      {tableStatusCounts.AVAILABLE} Available
                     </span>
                     <span className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-destructive rounded-sm" />
-                      {liveTables.filter((t) => t.status === "OCCUPIED").length} Occupied
+                      {tableStatusCounts.OCCUPIED} Occupied
                     </span>
                     <span className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-warning rounded-sm" />
-                      {liveTables.filter((t) => t.status === "RESERVED").length} Reserved
+                      {tableStatusCounts.RESERVED} Reserved
                     </span>
+                    {tableStatusCounts.OTHER > 0 && (
+                      <span className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-muted-foreground rounded-sm" />
+                        {tableStatusCounts.OTHER} Other
+                      </span>
+                    )}
                   </div>
                 </>
               ) : (

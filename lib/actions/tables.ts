@@ -128,21 +128,39 @@ export async function updateTable(
   }
 }
 
+// `status` is a plain String column with no database enum behind it, and this
+// action is a public POST endpoint that used to write the caller's string
+// straight through. A single lowercase "reserved" reached the live data that
+// way, and it desynced two widgets on the owner dashboard: the legend counts
+// tables by comparing against the uppercase names, so the row fell out of all
+// three buckets, while the stat card counts `status != "AVAILABLE"` and so read
+// it as occupied. The dashboard showed "1 occupied" beside "0 Occupied".
+//
+// Normalising here rather than at each call site keeps the column canonical
+// whatever the caller sends, and the allowlist means an unknown status is a
+// rejected request instead of a row no view can account for.
+const TABLE_STATUSES = ["AVAILABLE", "OCCUPIED", "RESERVED"] as const;
+
 export async function updateTableStatus(id: string, status: string) {
   const session = await getSession();
   if (!session || !session.restaurantId) return { error: "Not authenticated" };
 
+  const normalized = String(status || "").trim().toUpperCase();
+  if (!TABLE_STATUSES.includes(normalized as (typeof TABLE_STATUSES)[number])) {
+    return { error: `Invalid table status. Expected one of: ${TABLE_STATUSES.join(", ")}` };
+  }
+
   try {
     const result = await prisma.restaurantTable.updateMany({
       where: { id, restaurantId: session.restaurantId },
-      data: { status },
+      data: { status: normalized },
     });
     if (result.count === 0) return { error: "Table not found" };
     await logActivity(session, {
       actionType: "TABLE_STATUS_UPDATE",
       entityType: "RestaurantTable",
       entityId: id,
-      description: `Table status updated to ${status}`,
+      description: `Table status updated to ${normalized}`,
     });
     return { success: true };
   } catch (err: any) {
