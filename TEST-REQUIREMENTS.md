@@ -108,12 +108,12 @@ npm run dev            # port 3000, Turbopack
 
 ### 3.3 Static analysis and existing automated suites
 
-| Command | What it covers | Current state |
+| Command | What it covers | Current state (all four re-run 2026-08-15) |
 | --- | --- | --- |
 | `npm run typecheck` | Full TypeScript check | Passes clean. This is the static-analysis gate |
-| `npm run verify:billing` | Bill engine against `bill-design.md` worked examples | All checks pass |
-| `npm run verify:contrast` | 87 WCAG foreground/background pairs with alpha compositing | 87/87 pass |
-| `npm run lint` | ESLint 9 flat config (`eslint.config.mjs`) | 0 errors; warnings tolerated. Restored: `next lint` removed in Next 16, so the script was repointed at `eslint` and `zod` bumped to `^3.25.0` (react-hooks v7 needs the `zod/v4/core` export) |
+| `npm run verify:billing` | Bill engine against `bill-design.md` worked examples | ALL CHECKS PASSED |
+| `npm run verify:contrast` | WCAG foreground/background pairs with alpha compositing | 87/87 pass. The pair count only ever grows, so read the tail of the run rather than trusting this figure - it has gone stale here and in `CLAUDE.md` before |
+| `npm run lint` | ESLint 9 flat config (`eslint.config.mjs`) | 0 errors, 133 warnings. Warnings are tolerated by policy, so assert on the error count. Restored: `next lint` removed in Next 16, so the script was repointed at `eslint` and `zod` bumped to `^3.25.0` (react-hooks v7 needs the `zod/v4/core` export) |
 
 There are no `.test.*` or `.spec.*` files and no vitest, jest, or playwright configuration in the repository. Everything in sections 4 and 5 below is currently a manual or to-be-automated requirement. Establishing an automated harness is itself listed as a gap in section 9.
 
@@ -358,11 +358,11 @@ This is the highest-risk area in the system, because every table QR sticker prin
 | NFR-SEC-040 | Security headers from `next.config.js` are present on every response: HSTS, CSP (`frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy. |
 | NFR-SEC-050 | Secrets never reach the client bundle. Grep the built output for `JWT_SECRET`, `DATABASE_URL`, and `PAYMENT_WEBHOOK_SECRET` values. |
 | NFR-SEC-060 | Session cookies are HttpOnly, Secure in production, and SameSite-constrained. |
-| NFR-SEC-070 | Login and password reset are rate-limited or otherwise protected against credential stuffing. **Verify whether this exists; if not, raise it as a gap.** |
+| NFR-SEC-070 | Login and password reset are rate-limited or otherwise protected against credential stuffing. **Verified 2026-08-15: no rate limiting exists. Open gap, see section 9.** |
 | NFR-SEC-080 | File upload rejects non-image content types, oversized files, and path traversal in the filename. |
 | NFR-SEC-090 | The public `restaurantId` printed on QR stickers grants no authenticated capability whatsoever. |
 | NFR-SEC-100 | Error responses do not leak stack traces, table names, or Prisma error internals to the client. |
-| NFR-SEC-110 | `/api/debug` is either removed or unreachable in production. **Confirm before release.** |
+| NFR-SEC-110 | `/api/debug` is either removed or unreachable in production. **Verified 2026-08-15: the route still exists but self-gates - it sits outside the proxy matcher, so it checks the session itself and returns 404 to anyone who is not ADMIN or SUPER_ADMIN, concealing its existence. It discloses only SET / NOT SET per env var plus the database host and a user count, never a secret value. Treat as a pass; re-test the gate rather than the route's absence.** |
 
 ### 5.3 Reliability and data integrity (NFR-REL)
 
@@ -406,8 +406,8 @@ This is the highest-risk area in the system, because every table QR sticker prin
 
 | ID | Requirement |
 | --- | --- |
-| NFR-MAINT-010 | `npm run typecheck` passes clean. This is the static-analysis gate while lint is broken. |
-| NFR-MAINT-020 | Linting is restored: repoint the `lint` script at `eslint` and reconcile the zod major version with what `eslint-config-next` expects. |
+| NFR-MAINT-010 | `npm run typecheck` passes clean. Together with `lint`, `verify:billing`, and `verify:contrast` this is the static-analysis gate. Verified clean 2026-08-15. |
+| NFR-MAINT-020 | `npm run lint` reports 0 errors. **Met 2026-08-15** - the script was repointed at `eslint` (Next 16 removed `next lint`) and `zod` bumped to `^3.25.0` for the `zod/v4/core` export react-hooks v7 needs. Warnings are tolerated by policy, so assert on the error count, not a clean run. |
 | NFR-MAINT-030 | Server actions return discriminated unions (`{ data } | { error }`) consistently. |
 | NFR-MAINT-040 | No hardcoded tax rates, thresholds, or percentages outside `lib/billing/config.ts`. |
 | NFR-MAINT-050 | An automated test harness exists (vitest or playwright) so this document's P1 items can run in CI. |
@@ -556,14 +556,15 @@ Test effort should be weighted in this order.
 
 These are stated so a tester does not spend a day chasing a known limitation as if it were a defect.
 
-1. **No automated test harness.** No `.test.*` or `.spec.*` files, and no vitest, jest, or playwright configuration exists. Only `verify:billing` and `verify:contrast` are automated. Everything else in this document is manual until NFR-MAINT-050 is met.
-2. **Linting is broken** on two independent counts (section 3.3). Static analysis rests on `typecheck` alone.
-3. **Image library index is a JSON file** at `public/uploads/_library.json`, not a database table. It is ephemeral on serverless hosts. Tracked as a known gap in the header comment of `lib/actions/image-library.ts`.
-4. **CBMS is queue-only.** There is no live IRD endpoint to sync against, so FR-BILL-150 can only be tested to the queue boundary.
-5. **Payment gateways are not integrated.** Only the webhook receiver and method labels exist, so FR-PAY-010 tests the record, not a real settlement.
-6. **Turbopack dev rotates server action IDs**, so the on-disk manifest goes stale and curl-driven action testing needs live ID recovery each session.
-7. **Two billing config values are marked UNCONFIRMED**: `buyerPanThreshold` (10,000 versus 1,00,000) and `cbmsThresholdHospitality` (5 crore, pending circular verification). Test against the configured value and flag the ambiguity rather than asserting a specific figure as correct.
-8. **Rate limiting on login is unverified.** Confirm whether it exists before writing NFR-SEC-070 as a pass or a gap.
+1. **No automated test harness.** No `.test.*` or `.spec.*` files, and no vitest, jest, or playwright configuration exists. Only `verify:billing` and `verify:contrast` are automated. Everything else in this document is manual until NFR-MAINT-050 is met. Note that `lint` tolerates warnings by policy (133 at last run), so static analysis rests on `typecheck` plus the two verify suites.
+2. **Image library index is a JSON file** at `public/uploads/_library.json`, not a database table. It is ephemeral on serverless hosts. Tracked as a known gap in the header comment of `lib/actions/image-library.ts`.
+3. **CBMS is queue-only.** There is no live IRD endpoint to sync against, so FR-BILL-150 can only be tested to the queue boundary.
+4. **Payment gateways are not integrated.** Only the webhook receiver and method labels exist, so FR-PAY-010 tests the record, not a real settlement.
+5. **Turbopack dev rotates server action IDs**, so the on-disk manifest goes stale and curl-driven action testing needs live ID recovery each session.
+6. **Two billing config values are marked UNCONFIRMED**: `buyerPanThreshold` (10,000 versus 1,00,000) and `cbmsThresholdHospitality` (5 crore, pending circular verification). Test against the configured value and flag the ambiguity rather than asserting a specific figure as correct.
+7. **No rate limiting exists on login or password reset** (verified 2026-08-15). `login()` in `lib/actions/auth.ts` goes straight to `bcrypt.compare` with no attempt counter, lockout, or backoff, and nothing else in the request path supplies one. Every login form is a Server Action, so it is a public POST endpoint reachable without the UI. NFR-SEC-070 is therefore a confirmed gap, not a test to run.
+
+   The trap for a tester: the superadmin console at `/superadmin/settings` renders editable **Rate Limit**, **IP Whitelist**, and **Session Timeout** fields, and saving them succeeds. All three are inert. `lib/actions/admin-settings.ts` persists them under the `admin_security` key and **no code reads them back as a gate** - grep for `rateLimit`, `ipWhitelist`, and `sessionTimeout` returns only the type, the defaults, and the settings screen itself. Do not record NFR-SEC-070 as a pass on the strength of that field having a value in it.
 
 ---
 
