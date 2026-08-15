@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
@@ -37,6 +38,12 @@ const ALERT_CHANNELS_KEY = "health_alert_channels";
 const DEFAULT_ALERT_CHANNELS: AlertChannels = { email: true, sms: true, slack: false };
 
 export async function getHealthAlertChannels(): Promise<{ data?: AlertChannels; error?: string }> {
+  // Platform config, and the matching writer is already admin-only, so an
+  // unguarded reader was just an inconsistency. Every "use server" export is a
+  // public POST endpoint.
+  const session = await requireAdmin();
+  if (!session) return { error: "Not authorized" };
+
   try {
     const data = await getSetting<AlertChannels>(ALERT_CHANNELS_KEY, DEFAULT_ALERT_CHANNELS);
     return { data };
@@ -69,11 +76,20 @@ export type AdminSecuritySettings = {
 };
 const SECURITY_KEY = "admin_security";
 
+// The superadmin console presents this as the "Primary API Key": masked by
+// default, behind a reveal toggle, with a copy button. That affordance means it
+// has to be generated like a secret. It previously fell back to
+// `Math.random().toString(36) + Date.now().toString(36)` when crypto.randomUUID
+// was unavailable, and Math.random is not a CSPRNG - its output is predictable
+// from prior draws, and the Date.now half is guessable outright. randomBytes is
+// always available in the Node server runtime these actions run in, so there is
+// no reason to keep a weak path at all.
+//
+// NOTE: nothing authenticates against this key yet - no route reads it. When
+// something does, it must compare against a *hash* of the stored value rather
+// than the value itself, and the comparison must be timing-safe.
 function generateApiKey() {
-  const raw = (typeof crypto !== "undefined" && "randomUUID" in crypto)
-    ? crypto.randomUUID().replace(/-/g, "")
-    : Math.random().toString(36).slice(2) + Date.now().toString(36);
-  return `sk_resthru_${raw}`;
+  return `sk_resthru_${randomBytes(24).toString("hex")}`;
 }
 
 const DEFAULT_SECURITY: AdminSecuritySettings = {
@@ -84,6 +100,13 @@ const DEFAULT_SECURITY: AdminSecuritySettings = {
 };
 
 export async function getAdminSecuritySettings(): Promise<{ data?: AdminSecuritySettings; error?: string }> {
+  // This had no guard at all, which made the reveal-and-copy UI theatre: the
+  // raw key, the IP whitelist and the session timeout were readable by any
+  // anonymous POST to this endpoint. It also *mints* the key on first read, so
+  // an unauthenticated caller could both trigger creation and take the result.
+  const session = await requireAdmin();
+  if (!session) return { error: "Not authorized" };
+
   try {
     let data = await getSetting<AdminSecuritySettings>(SECURITY_KEY, DEFAULT_SECURITY);
     if (!data.apiKey) {
