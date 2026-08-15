@@ -1,8 +1,20 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireTenant, OWNER_ROLES } from "@/lib/auth-tenant";
 import { chartColor, paymentColor } from "@/lib/constants";
+
+// Every export here took the target `restaurantId` as its first argument behind
+// a bare `if (!session)`. That authenticates without authorizing: a restaurant
+// id is public (it is printed on every table QR sticker), so any signed-in user
+// of any outlet -- a waiter included -- could read another restaurant's full
+// revenue, item mix, per-waiter takings and VAT return by passing its id to
+// these endpoints. Every "use server" export is a public POST endpoint.
+//
+// This is the same fix lib/actions/settings.ts already carries. The leading
+// `_restaurantId` parameter is kept and ignored so the existing call sites
+// compile; they all passed their own session's restaurant anyway. Reports are
+// owner-level, hence OWNER_ROLES rather than FRONT_OF_HOUSE_ROLES.
 
 function getDateRange(period: string, startDate?: string, endDate?: string) {
   const now = new Date();
@@ -40,14 +52,28 @@ function getDateRange(period: string, startDate?: string, endDate?: string) {
   return { start, end };
 }
 
+/**
+ * The equally-long window immediately before `range`, for period-on-period
+ * comparison. Derived from the range's own span so it works for every preset
+ * and for a custom range.
+ */
+function previousRange(range: { start: Date; end: Date }) {
+  const span = range.end.getTime() - range.start.getTime();
+  return {
+    start: new Date(range.start.getTime() - span - 1),
+    end: new Date(range.start.getTime() - 1),
+  };
+}
+
 export async function getSalesReport(
-  restaurantId: string,
+  _restaurantId: string | undefined,
   period: string,
   startDate?: string,
   endDate?: string,
 ) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated" };
+  const auth = await requireTenant(OWNER_ROLES);
+  if (!auth.ok) return { error: auth.error };
+  const restaurantId = auth.session.restaurantId;
 
   try {
     const { start, end } = getDateRange(period, startDate, endDate);
@@ -156,21 +182,51 @@ export async function getSalesReport(
   }
 }
 
-export async function getItemReport(restaurantId: string, period: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated" };
+export async function getItemReport(_restaurantId: string | undefined, period: string) {
+  const auth = await requireTenant(OWNER_ROLES);
+  if (!auth.ok) return { error: auth.error };
+  const restaurantId = auth.session.restaurantId;
 
   try {
-    const { start, end } = getDateRange(period);
+    const range = getDateRange(period);
+    const prior = previousRange(range);
 
-    const orders = await prisma.order.findMany({
-      where: {
-        restaurantId,
-        createdAt: { gte: start, lte: end },
-        status: { notIn: ["CANCELLED", "VOIDED"] },
-      },
-      include: { items: true },
-    });
+    // OrderItem denormalises the item name but not its category, so the
+    // category has to come from the menu. This used to be hardcoded to "" for
+    // every row, which made the "Revenue by Category" pie a single 100%
+    // "Uncategorized" slice on every restaurant - a chart that could never say
+    // anything. The prior-period rollup is what makes `trend` real (see below).
+    const [orders, priorOrders, menuItems] = await Promise.all([
+      prisma.order.findMany({
+        where: {
+          restaurantId,
+          createdAt: { gte: range.start, lte: range.end },
+          status: { notIn: ["CANCELLED", "VOIDED"] },
+        },
+        include: { items: true },
+      }),
+      prisma.order.findMany({
+        where: {
+          restaurantId,
+          createdAt: { gte: prior.start, lte: prior.end },
+          status: { notIn: ["CANCELLED", "VOIDED"] },
+        },
+        select: { items: { select: { menuItemId: true, quantity: true } } },
+      }),
+      prisma.menuItem.findMany({
+        where: { restaurantId },
+        select: { id: true, category: { select: { name: true } } },
+      }),
+    ]);
+
+    const categoryOf = new Map(menuItems.map((m) => [m.id, m.category?.name ?? ""]));
+
+    const priorQty = new Map<string, number>();
+    for (const order of priorOrders) {
+      for (const item of order.items) {
+        priorQty.set(item.menuItemId, (priorQty.get(item.menuItemId) ?? 0) + item.quantity);
+      }
+    }
 
     const itemMap = new Map<string, {
       id: string; name: string; category: string;
@@ -180,7 +236,9 @@ export async function getItemReport(restaurantId: string, period: string) {
     for (const order of orders) {
       for (const item of order.items) {
         const existing = itemMap.get(item.menuItemId) || {
-          id: item.menuItemId, name: item.menuItemName, category: "",
+          id: item.menuItemId,
+          name: item.menuItemName,
+          category: categoryOf.get(item.menuItemId) ?? "",
           orders: 0, revenue: 0, quantity: 0,
         };
         existing.orders += 1;
@@ -192,17 +250,32 @@ export async function getItemReport(restaurantId: string, period: string) {
 
     const items = Array.from(itemMap.values()).sort((a, b) => b.revenue - a.revenue);
 
+    // `trend` used to be `i < items.length / 2 ? "up" : "down"`, i.e. the top
+    // half of the table always showed a green up arrow and the bottom half a red
+    // down arrow. That is the sort order redrawn as an arrow, not a trend, and it
+    // claimed a dish was declining purely for ranking below the median. It is
+    // now units sold this period against the same span immediately before, and
+    // "flat" is a real third outcome (including a dish with no prior sales to
+    // compare against).
+    const trendFor = (item: { id: string; quantity: number }) => {
+      const before = priorQty.get(item.id);
+      if (before == null || before === 0) return "flat";
+      if (item.quantity > before) return "up";
+      if (item.quantity < before) return "down";
+      return "flat";
+    };
+
     const topItems = items.slice(0, 10).map((item, i) => ({
       rank: i + 1,
       name: item.name,
       category: item.category || "Uncategorized",
       orders: item.orders,
       revenue: item.revenue,
-      trend: i < items.length / 2 ? "up" : "down",
+      trend: trendFor(item),
     }));
 
     const leastItems = items.slice(-5).reverse().map((item, i) => ({
-      rank: items.length - 4 + i,
+      rank: Math.max(1, items.length - 4) + i,
       name: item.name,
       category: item.category || "Uncategorized",
       orders: item.orders,
@@ -228,9 +301,10 @@ export async function getItemReport(restaurantId: string, period: string) {
   }
 }
 
-export async function getStaffReport(restaurantId: string, period: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated" };
+export async function getStaffReport(_restaurantId: string | undefined, period: string) {
+  const auth = await requireTenant(OWNER_ROLES);
+  if (!auth.ok) return { error: auth.error };
+  const restaurantId = auth.session.restaurantId;
 
   try {
     const { start, end } = getDateRange(period);
@@ -268,11 +342,16 @@ export async function getStaffReport(restaurantId: string, period: string) {
       }
     }
 
+    // There is no `rating` anywhere in the schema. This used to return
+    // `+(4.0 + Math.random()).toFixed(1)`, which the page rendered next to a
+    // filled star as that waiter's performance rating - a fabricated number in
+    // a table an owner reads to decide who is carrying a shift, and one that
+    // changed on every refresh. Removed rather than replaced: the honest fix is
+    // to collect real ratings first. The three columns that remain are measured.
     const staffData = Array.from(staffMap.values())
       .map((s) => ({
         ...s,
         avgOrderValue: s.ordersHandled > 0 ? Math.round(s.revenue / s.ordersHandled) : 0,
-        rating: +(4.0 + Math.random()).toFixed(1),
       }))
       .sort((a, b) => b.revenue - a.revenue);
 
@@ -282,9 +361,10 @@ export async function getStaffReport(restaurantId: string, period: string) {
   }
 }
 
-export async function getTaxReport(restaurantId: string, period: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated" };
+export async function getTaxReport(_restaurantId: string | undefined, period: string) {
+  const auth = await requireTenant(OWNER_ROLES);
+  if (!auth.ok) return { error: auth.error };
+  const restaurantId = auth.session.restaurantId;
 
   try {
     const { start, end } = getDateRange(period);

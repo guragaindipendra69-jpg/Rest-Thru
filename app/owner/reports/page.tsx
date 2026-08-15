@@ -35,7 +35,7 @@ import {
   Download,
   TrendingUp,
   TrendingDown,
-  Star,
+  Minus,
   ChevronDown,
   Loader2,
 } from 'lucide-react';
@@ -453,10 +453,25 @@ export default function ReportsPage() {
                             {formatCurrency(item.revenue)}
                           </td>
                           <td className="py-3 px-4 text-center">
+                            {/* Units sold this period vs the same span before it.
+                                "flat" covers no change and a dish with no prior
+                                sales to compare against, so the arrow is not
+                                forced into up-or-down. */}
                             {item.trend === 'up' ? (
-                              <TrendingUp className="h-4 w-4 inline text-success" />
+                              <TrendingUp
+                                className="h-4 w-4 inline text-success"
+                                aria-label="Selling more than the previous period"
+                              />
+                            ) : item.trend === 'down' ? (
+                              <TrendingDown
+                                className="h-4 w-4 inline text-destructive"
+                                aria-label="Selling less than the previous period"
+                              />
                             ) : (
-                              <TrendingDown className="h-4 w-4 inline text-destructive" />
+                              <Minus
+                                className="h-4 w-4 inline text-muted-foreground"
+                                aria-label="No change from the previous period"
+                              />
                             )}
                           </td>
                         </tr>
@@ -573,7 +588,6 @@ export default function ReportsPage() {
                         <th className="text-right py-3 px-4 font-medium">Orders Handled</th>
                         <th className="text-right py-3 px-4 font-medium">Revenue Generated</th>
                         <th className="text-right py-3 px-4 font-medium">Avg Order Value</th>
-                        <th className="text-center py-3 px-4 font-medium">Rating</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -586,10 +600,6 @@ export default function ReportsPage() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             {formatCurrency(staff.avgOrderValue)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="font-medium">{staff.rating}</span>
-                            <Star className="h-4 w-4 fill-rating text-rating inline ml-1" />
                           </td>
                         </tr>
                       ))}
