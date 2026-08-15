@@ -205,12 +205,12 @@ export function NotFoundScene() {
             Order status
           </p>
           <h1 className="mt-3 sm:mt-4 font-serif text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-semibold leading-[1.05] sm:leading-[0.95] text-white">
-            This dish isn't
+            This dish isn&apos;t
             <br />
             <span className="italic text-brand">on the menu.</span>
           </h1>
           <p className="mx-auto mt-3 sm:mt-5 max-w-md sm:max-w-xl text-sm sm:text-base md:text-lg text-white/70 px-2">
-            Looks like that recipe failed. The page you're craving has drifted
+            Looks like that recipe failed. The page you&apos;re craving has drifted
             off into the kitchen void — but the pass is still hot.
           </p>
         </div>

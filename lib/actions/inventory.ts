@@ -108,6 +108,76 @@ export async function updateInventoryStock(id: string, newQuantity: number, reas
   }
 }
 
+// Editable inventory item — name, category, unit and minimum threshold. Stock
+// changes stay on updateInventoryStock so the movement ledger is not bypassed.
+export async function updateInventoryItem(
+  id: string,
+  data: { name: string; category?: string; unit: string; minThreshold: number }
+) {
+  const auth = await requireTenant(FRONT_OF_HOUSE_ROLES);
+  if (!auth.ok) return { error: auth.error };
+  const { session } = auth;
+  if (!data.name?.trim()) return { error: "Name is required" };
+  if (data.minThreshold < 0) return { error: "Minimum threshold cannot be negative" };
+
+  try {
+    const existing = await prisma.inventoryItem.findFirst({
+      where: { id, restaurantId: session.restaurantId },
+      select: { id: true },
+    });
+    if (!existing) return { error: "Item not found" };
+
+    const item = await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        name: data.name.trim(),
+        description: data.category?.trim() || null,
+        unit: data.unit,
+        reorderLevel: data.minThreshold,
+      },
+    });
+    await logActivity(session, {
+      actionType: "INVENTORY_UPDATE",
+      entityType: "InventoryItem",
+      entityId: id,
+      description: `Inventory item "${data.name.trim()}" updated`,
+    });
+    return { data: item };
+  } catch (err: any) {
+    return { error: err?.message || "Failed to update item" };
+  }
+}
+
+// Deletes the item and its movement ledger. Blocked when the item is in use by
+// a menu item or combo, since deleting it would orphan that link.
+export async function deleteInventoryItem(id: string) {
+  const auth = await requireTenant(FRONT_OF_HOUSE_ROLES);
+  if (!auth.ok) return { error: auth.error };
+  const { session } = auth;
+
+  try {
+    const existing = await prisma.inventoryItem.findFirst({
+      where: { id, restaurantId: session.restaurantId },
+      select: { id: true, name: true },
+    });
+    if (!existing) return { error: "Item not found" };
+
+    await prisma.$transaction([
+      prisma.inventoryHistory.deleteMany({ where: { inventoryItemId: id } }),
+      prisma.inventoryItem.delete({ where: { id } }),
+    ]);
+    await logActivity(session, {
+      actionType: "INVENTORY_DELETE",
+      entityType: "InventoryItem",
+      entityId: id,
+      description: `Inventory item "${existing.name}" deleted`,
+    });
+    return { data: { id } };
+  } catch (err: any) {
+    return { error: err?.message || "Failed to delete item" };
+  }
+}
+
 // Add stock (delivery/restock) — StockHistoryDialog's "Add Stock" action.
 export async function addStock(id: string, quantity: number, notes?: string) {
   const auth = await requireTenant(FRONT_OF_HOUSE_ROLES);

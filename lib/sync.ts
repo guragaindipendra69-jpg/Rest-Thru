@@ -2,7 +2,7 @@ const SYNC_CHANNEL = "resthru-sync";
 
 let bc: BroadcastChannel | null = null;
 let sse: EventSource | null = null;
-let listeners: Set<(event: string, data: any) => void> = new Set();
+const listeners: Set<(event: string, data: any) => void> = new Set();
 
 export function startSync() {
   if (typeof window === "undefined") return;

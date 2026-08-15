@@ -12,35 +12,75 @@ import {
   type PricingMode,
 } from "@/lib/billing/config";
 import { allocateInvoiceNumber, runWithSerialRetry } from "@/lib/billing/serial";
-import { buildBillLines } from "@/lib/billing/lines";
+import { buildBillLines, type OrderLineRow } from "@/lib/billing/lines";
 
 /**
- * Splits a VAT-inclusive gross total into its taxable base and VAT component.
+ * Recomputes a pending bill's money columns for a new discount, through the
+ * billing engine and under the bill's own pricing mode.
  *
- * Delegates to lib/billing/calculate.ts rather than doing the arithmetic here,
- * so there is exactly one rounding implementation in the codebase and the
- * recalculation paths below cannot drift from the figures a bill was issued
- * with. VAT is only broken out for VAT-registered restaurants; otherwise the
- * whole amount is taxable with no VAT.
+ * This arithmetic must not be done by hand. `subtotal + serviceCharge -
+ * discount` is the gross total in INCLUSIVE mode only. In ADDITIVE mode the
+ * menu price is a pre-VAT base and VAT is stacked on top (section 8.2 of
+ * bill-design.md), so treating that sum as the total drops the VAT the outlet
+ * owes and undercharges the guest by the entire tax. Feeding the order's lines
+ * back through calculateBill also keeps Schedule 1 exempt items out of the
+ * taxable base, which one aggregate figure cannot express, and keeps discount
+ * apportionment between taxable and exempt value in the single place that
+ * implements it.
  *
- * Deliberately fixed to INCLUSIVE: every caller passes a gross total that has
- * already been settled on, so this splits an existing number rather than
- * deciding what the guest pays. Pricing mode is applied where a bill is
- * actually issued (createBillDraft here, settleOrder in orders.ts).
+ * `pricingMode` comes from the bill, not from the restaurant's current setting:
+ * the bill was issued under one mode, and flipping the outlet's setting
+ * afterwards must not retroactively change what an open ticket owes.
+ *
+ * The engine clamps the discount itself, so the returned `discountAmount` is
+ * what was actually applied rather than what was asked for.
  */
-function splitBillVat(
-  totalAmount: number,
+function recalculateWithDiscount(
+  bill: {
+    billNumber: string;
+    subtotal: number;
+    serviceCharge: number;
+    pricingMode: string | null;
+    order?: { items?: OrderLineRow[] | null } | null;
+  },
   restaurant: { vatRegistered: boolean; taxPercentage: number } | null,
+  requestedDiscount: number,
 ) {
+  const { lines } = buildBillLines({
+    items: bill.order?.items ?? [],
+    subtotal: bill.subtotal,
+    serviceCharge: bill.serviceCharge,
+    fallbackLabel: `Bill ${bill.billNumber}`,
+  });
+
   const calculation = calculateBill({
-    lines: [{ description: "Total", quantity: 1, unitPrice: totalAmount }],
+    lines,
     config: resolveBillingConfig(restaurant),
-    pricingMode: "INCLUSIVE",
+    pricingMode: (bill.pricingMode as PricingMode) ?? "INCLUSIVE",
     registrationType: registrationTypeFor(restaurant ?? {}),
+    discountAmount: requestedDiscount,
+    // Service charge already rides as its own line; applying it again doubles it.
     applyServiceCharge: false,
   });
-  return { taxable: calculation.taxableValue, vat: calculation.vatAmount };
+
+  return {
+    discountAmount: calculation.discountAmount,
+    totalAmount: calculation.grandTotal,
+    taxableAmount: calculation.taxableValue,
+    taxAmount: calculation.vatAmount,
+    exemptAmount: calculation.exemptValue,
+  };
 }
+
+/** Order lines a discount recalculation needs, matching `OrderLineRow`. */
+const DISCOUNT_LINE_SELECT = {
+  menuItemName: true,
+  quantity: true,
+  pricePerUnit: true,
+  status: true,
+  vatExempt: true,
+  hsCode: true,
+} as const;
 
 const RECEIPT_RESTAURANT_SELECT = {
   name: true,
@@ -277,14 +317,23 @@ export async function recordPayment(data: {
 }) {
   const session = await getSession();
   if (!session?.restaurantId) return { error: "Not authenticated" };
+  // Hoisted: narrowing on session does not survive into the transaction closure.
+  const restaurantId = session.restaurantId;
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const bill = await tx.bill.findUnique({
-        where: { id: data.billId },
-        include: { payments: true },
+      // Scoped to the session's restaurant, like every other lookup in this
+      // file. Unscoped, this action would settle any bill on the platform from
+      // its id alone: bill ids are handed to the client on every ticket, and a
+      // Server Action is a public POST endpoint, so the only thing standing
+      // between one outlet and another's takings is this where clause.
+      const bill = await tx.bill.findFirst({
+        where: { id: data.billId, restaurantId },
+        select: { id: true, orderId: true, billNumber: true, totalAmount: true, status: true },
       });
       if (!bill) return { error: "Bill not found" };
+      if (bill.status === "VOID") return { error: "A voided bill cannot take a payment" };
+      if (!(data.amount > 0)) return { error: "Enter a payment amount greater than zero" };
 
       await tx.payment.create({
         data: {
@@ -295,25 +344,49 @@ export async function recordPayment(data: {
         },
       });
 
-      const totalPayments = bill.payments.reduce((s, p) => s + p.amount, 0) + data.amount;
-      const allMethods = bill.payments.map((p) => p.method).concat(data.method);
-      const distinctMethods = Array.from(new Set(allMethods));
+      // The running total comes from an atomic increment, not from summing rows
+      // this transaction read. Two cashiers taking halves of a split bill at the
+      // same moment would each have read the other's payment as absent — even
+      // reading back after the insert, since under read-committed neither sees
+      // the other's uncommitted row — and written an amountPaid short by the
+      // other's payment, leaving a fully-settled bill PENDING. An increment
+      // takes the bill's row lock, so the second call blocks until the first
+      // commits and then adds to the committed value. Whoever lands last sees
+      // the true total, which is the one that decides PAID.
+      const incremented = await tx.bill.update({
+        where: { id: bill.id },
+        data: { amountPaid: { increment: data.amount } },
+        select: { amountPaid: true },
+      });
+      const totalPayments = incremented.amountPaid;
+
+      // Safe to read now: the increment above already waited for any concurrent
+      // payment to commit, so every row on this bill is visible.
+      const payments = await tx.payment.findMany({
+        where: { billId: bill.id },
+        select: { method: true },
+      });
+      const distinctMethods = Array.from(new Set(payments.map((p) => p.method)));
       const paymentMethod = distinctMethods.length > 1 ? "SPLIT" : distinctMethods[0];
       const change = Math.max(0, totalPayments - bill.totalAmount);
+      // A paisa of tolerance: the columns are Float, so a bill settled to the
+      // last representable digit must not read as a rupee short.
+      const fullyPaid = totalPayments >= bill.totalAmount - 0.005;
 
       const updated = await tx.bill.update({
         where: { id: bill.id },
         data: {
-          amountPaid: totalPayments,
           paymentMethod: paymentMethod === "SPLIT" ? "SPLIT" : paymentMethod,
           change,
-          status: totalPayments >= bill.totalAmount ? "PAID" : "PENDING",
-          settledAt: totalPayments >= bill.totalAmount ? new Date() : undefined,
+          status: fullyPaid ? "PAID" : "PENDING",
+          // Stamped on the transition only. A further payment against an
+          // already-settled bill must not move the time the sale was settled,
+          // which is a reported figure.
+          settledAt: fullyPaid && bill.status !== "PAID" ? new Date() : undefined,
         },
         include: { payments: true, order: { include: { items: true } } },
       });
 
-      const fullyPaid = totalPayments >= bill.totalAmount;
       if (fullyPaid) {
         await tx.order.update({
           where: { id: bill.orderId },
@@ -430,9 +503,23 @@ export async function popCashDrawer(shiftId?: string) {
   }
 }
 
+/**
+ * Works out what each guest owes when a table splits the bill equally.
+ *
+ * This is a calculator, not a mutation: it writes no Bill rows and does not
+ * change the one it was given. The reception UI ("equal split / Calculate")
+ * shows the amounts, and the cashier then takes them as separate payments
+ * through `recordPayment`, which is what actually moves `amountPaid` and settles
+ * the ticket. Splitting into real child invoices would consume a tax-invoice
+ * serial per share, so it is deliberately not what this does.
+ *
+ * Item-level splitting ("you had the fish") is not implemented. The parameter
+ * that used to accept item ids was silently ignored and has been removed rather
+ * than left advertising a capability that was not there.
+ */
 export async function splitBill(data: {
   billId: string;
-  splits: Array<{ label: string; items?: string[] }>;
+  splits: Array<{ label: string }>;
 }) {
   const session = await getSession();
   if (!session?.restaurantId) return { error: "Not authenticated" };
@@ -441,20 +528,19 @@ export async function splitBill(data: {
   try {
     const bill = await prisma.bill.findFirst({
       where: { id: data.billId, restaurantId: session.restaurantId },
-      include: { order: { include: { items: true } } },
+      select: { totalAmount: true },
     });
     if (!bill) return { error: "Bill not found" };
 
-    const order = bill.order;
-    const items = order.items;
-    const totalItemsValue = items.reduce((s, i) => s + i.pricePerUnit * i.quantity, 0);
     const n = data.splits.length;
+    // Floor each share to the paisa and give the rounding remainder to the first
+    // guest, so the shares sum to the bill exactly rather than a paisa under.
     const equalShare = Math.floor((bill.totalAmount * 100) / n) / 100;
     const remainder = Math.round((bill.totalAmount - equalShare * n) * 100) / 100;
 
     const splitBills = data.splits.map((split, idx) => ({
       label: split.label,
-      amount: idx === 0 ? equalShare + remainder : equalShare,
+      amount: idx === 0 ? Math.round((equalShare + remainder) * 100) / 100 : equalShare,
     }));
 
     await logActivity(session, {
@@ -540,6 +626,7 @@ export async function applyDiscountToBill(billId: string, discountAmount: number
     const [bill, restaurant] = await Promise.all([
       prisma.bill.findFirst({
         where: { id: billId, restaurantId: session.restaurantId },
+        include: { order: { select: { items: { select: DISCOUNT_LINE_SELECT } } } },
       }),
       prisma.restaurant.findUnique({
         where: { id: session.restaurantId },
@@ -549,19 +636,13 @@ export async function applyDiscountToBill(billId: string, discountAmount: number
     if (!bill) return { error: "Bill not found" };
     if (bill.status !== "PENDING") return { error: "Can only discount a pending bill" };
 
-    const clamped = Math.min(Math.max(discountAmount, 0), bill.subtotal);
-    // Menu prices are VAT-inclusive; re-split the discounted gross into taxable + VAT.
-    const newTotal = bill.subtotal + bill.serviceCharge - clamped;
-    const { taxable, vat } = splitBillVat(newTotal, restaurant);
+    const money = recalculateWithDiscount(bill, restaurant, discountAmount);
 
     const updated = await prisma.bill.update({
       where: { id: billId },
       data: {
-        discountAmount: clamped,
-        totalAmount: newTotal,
-        taxableAmount: taxable,
-        taxAmount: vat,
-        status: newTotal <= 0 ? "PAID" : "PENDING",
+        ...money,
+        status: money.totalAmount <= 0 ? "PAID" : "PENDING",
         ...(discountReason ? { notes: discountReason } : {}),
       },
     });
@@ -570,7 +651,7 @@ export async function applyDiscountToBill(billId: string, discountAmount: number
       actionType: "DISCOUNT_APPLY",
       entityType: "Bill",
       entityId: billId,
-      description: `Discount of ${discountAmount} applied${discountReason ? ` (${discountReason})` : ""}`,
+      description: `Discount of ${money.discountAmount} applied${discountReason ? ` (${discountReason})` : ""}`,
     });
 
     return { data: updated };
@@ -600,6 +681,7 @@ export async function applyCouponToBill(billId: string, couponCode: string) {
     const [bill, restaurant] = await Promise.all([
       prisma.bill.findFirst({
         where: { id: billId, restaurantId: session.restaurantId },
+        include: { order: { select: { items: { select: DISCOUNT_LINE_SELECT } } } },
       }),
       prisma.restaurant.findUnique({
         where: { id: session.restaurantId },
@@ -613,10 +695,7 @@ export async function applyCouponToBill(billId: string, couponCode: string) {
       ? bill.subtotal * (coupon.discountValue / 100)
       : coupon.discountValue;
 
-    const clampedDiscount = Math.min(discountValue, bill.subtotal);
-    // Menu prices are VAT-inclusive; re-split the discounted gross into taxable + VAT.
-    const newTotal = bill.subtotal + bill.serviceCharge - clampedDiscount;
-    const { taxable, vat } = splitBillVat(newTotal, restaurant);
+    const money = recalculateWithDiscount(bill, restaurant, discountValue);
 
     return await prisma.$transaction(async (tx) => {
       await tx.coupon.update({
@@ -627,11 +706,8 @@ export async function applyCouponToBill(billId: string, couponCode: string) {
       const updated = await tx.bill.update({
         where: { id: billId },
         data: {
-          discountAmount: clampedDiscount,
-          totalAmount: newTotal,
-          taxableAmount: taxable,
-          taxAmount: vat,
-          notes: `Coupon: ${coupon.code} (${clampedDiscount})`,
+          ...money,
+          notes: `Coupon: ${coupon.code} (${money.discountAmount})`,
         },
       });
 
@@ -642,7 +718,7 @@ export async function applyCouponToBill(billId: string, couponCode: string) {
         description: `Coupon "${couponCode}" applied to bill`,
       });
 
-      return { data: { bill: updated, coupon: coupon.code, discount: clampedDiscount } };
+      return { data: { bill: updated, coupon: coupon.code, discount: money.discountAmount } };
     });
   } catch (err: any) {
     return { error: err?.message || "Failed to apply coupon" };

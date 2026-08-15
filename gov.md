@@ -27,7 +27,7 @@ These are must‑haves for any **VAT‑registered** restaurant (which, for this 
 Delivered & verified (tsc + runtime test on a real bill: total 3960 → taxable 3504.42 + VAT 455.58 @13%, BS date 2083‑04‑05, amount in words):
 
 1. **PAN / VAT registration fields** — `Restaurant.panNumber`, `vatNumber`, `vatRegistered` added; the owner **Settings → General** PAN/VAT/registered inputs now actually persist (§2).
-2. **VAT‑inclusive 13% engine** (`lib/vat.ts`) — VAT is back‑calculated from the menu‑inclusive total and stored on each bill (`Bill.taxableAmount` + `taxAmount`) at draft/settle and recomputed on discount/coupon (§4).
+2. **VAT engine** (`lib/billing/calculate.ts`) — VAT is computed under the outlet's own pricing mode (INCLUSIVE back‑calculates it out of the menu price, ADDITIVE stacks it on top) and stored on each bill (`Bill.taxableAmount` + `taxAmount`) at draft/settle and recomputed on discount/coupon (§4). The rate and every threshold come from `lib/billing/config.ts`, not from a literal. This superseded the original `lib/vat.ts`, which was inclusive‑only at a hardcoded 13 and has been removed.
 3. **Legal invoice template** (`formatTaxInvoiceHTML` + `getInvoicePrintData`) — VAT‑registered → **"Tax Invoice / कर बीजक"** with seller PAN/VAT, buyer name/PAN, itemised lines, taxable + VAT(13%), grand total, **amount in words**, **BS + AD date**, signature line; unregistered → a **PAN‑bill "Invoice"** with the same fields minus VAT. Wired into reception **Checkout** print and **Invoice History** reprint (§3, §8).
 
 **Step 4 (§5–§6) — invoice immutability + credit notes + fiscal‑year numbering** (verified on real data: locked invoice B‑00018 → credit note CN‑208384‑00001, FY 2083/84):

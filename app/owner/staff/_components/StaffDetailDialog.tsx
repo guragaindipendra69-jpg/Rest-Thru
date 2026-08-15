@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, EyeOff, QrCode } from 'lucide-react';
+import { Eye, EyeOff, Pencil, QrCode } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,19 +11,48 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatCurrency } from '@/lib/format';
+import { isPdf } from '@/lib/upload-limits';
+import { EditStaffForm } from './EditStaffForm';
 import { StaffAvatar, formatRole, roleColors, type StaffMember } from './staff-shared';
 
-/** Read-only profile for one staff member. Salary stays masked until asked for. */
+/**
+ * Profile for one staff member. Salary stays masked until asked for.
+ *
+ * `onUpdated` turns the Edit button on. It is optional so a caller that only
+ * wants the read-only view can leave it off rather than pass a no-op.
+ */
 export function StaffDetailDialog({
   staff,
   open,
   onOpenChange,
+  onUpdated,
 }: {
   staff: StaffMember;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onUpdated?: (member: StaffMember) => void;
 }) {
   const [showSalary, setShowSalary] = useState(false);
+  // Swaps this dialog's body for the edit form. Opening a row went straight to
+  // a read-only profile with no way through to editing, so the only edit
+  // affordance was the pencil in the row actions, which is easy to miss.
+  const [editing, setEditing] = useState(false);
+
+  if (editing && onUpdated) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(next) => { if (!next) setEditing(false); onOpenChange(next); }}
+      >
+        <DialogContent className="max-w-md" onClick={(e) => e.stopPropagation()}>
+          <EditStaffForm
+            staff={staff}
+            onUpdated={(updated) => { onUpdated(updated); setEditing(false); }}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -32,7 +61,7 @@ export function StaffDetailDialog({
           <DialogTitle>Staff Details</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-3">
             <StaffAvatar
               initials={staff.avatar}
               role={staff.role}
@@ -40,6 +69,12 @@ export function StaffDetailDialog({
               size="h-20 w-20"
               textSize="text-2xl"
             />
+            {onUpdated && (
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditing(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Edit Profile
+              </Button>
+            )}
           </div>
           <div className="space-y-3">
             <Row label="Name">
@@ -88,7 +123,7 @@ export function StaffDetailDialog({
                       rel="noopener noreferrer"
                       className="text-primary text-xs hover:underline"
                     >
-                      View Photo
+                      {isPdf(staff.identityDocImage) ? 'Open PDF' : 'View Photo'}
                     </a>
                   )}
                 </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ChevronRight, Edit2, Search, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -215,16 +216,24 @@ function RowActions({
   onUpdated: (member: StaffMember) => void;
   onDeleted: (member: StaffMember) => void;
 }) {
+  // Controlled so a successful save closes the dialog. Uncontrolled, the form
+  // saved and then sat there looking unsubmitted, which reads as "editing does
+  // not work" even though the write went through.
+  const [editOpen, setEditOpen] = useState(false);
+
   return (
     <div className="flex flex-shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
-      <Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogTrigger asChild>
           <Button size="icon" variant="ghost" aria-label={`Edit ${member.name}`}>
             <Edit2 className="h-4 w-4" />
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-md">
-          <EditStaffForm staff={member} onUpdated={onUpdated} />
+          <EditStaffForm
+            staff={member}
+            onUpdated={(updated) => { onUpdated(updated); setEditOpen(false); }}
+          />
         </DialogContent>
       </Dialog>
       <AlertDialog>

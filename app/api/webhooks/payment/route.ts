@@ -26,6 +26,12 @@ function verifySignature(rawBody: string, provided: string, secret: string): boo
  *   { ref: string, transactionId: string, method: string, amount: number, status: "SUCCESS" | "FAILED" }
  *
  * The `ref` field must match the `reference` column on a pending Payment row.
+ *
+ * Replay is harmless rather than rejected: an already-verified payment
+ * short-circuits with 200, so re-posting a captured payload changes nothing. The
+ * signature carries no timestamp or nonce, so a valid payload stays replayable
+ * indefinitely; the idempotency above is what makes that safe, and any future
+ * side effect added here must preserve it.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -57,14 +63,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const payment = await prisma.payment.findFirst({
+    // `reference` is neither unique nor indexed, and the value is partly
+    // operator-supplied (a cashier can type a reference by hand at checkout), so
+    // more than one Payment row can carry the same string — across tenants.
+    // findFirst would silently pick one of them and verify the wrong sale, so
+    // ambiguity is reported rather than guessed at. Two rows are enough to
+    // decide that, hence take: 2.
+    const matches = await prisma.payment.findMany({
       where: { reference: ref },
       include: { bill: { select: { restaurantId: true } } },
+      take: 2,
     });
 
-    if (!payment) {
+    if (matches.length === 0) {
       return NextResponse.json({ error: "Payment not found for ref" }, { status: 404 });
     }
+    if (matches.length > 1) {
+      console.error(`Payment webhook: reference "${ref}" matches more than one payment; refusing to guess.`);
+      return NextResponse.json({ error: "Reference matches more than one payment" }, { status: 409 });
+    }
+
+    const payment = matches[0];
 
     if (payment.verified) {
       return NextResponse.json({ message: "Already verified" }, { status: 200 });
@@ -72,6 +91,16 @@ export async function POST(request: NextRequest) {
 
     if (status !== "SUCCESS") {
       return NextResponse.json({ message: "Transaction not successful" }, { status: 200 });
+    }
+
+    // The gateway's figure must agree with the payment it claims to confirm.
+    // Amounts are Float columns, so compare to the paisa rather than exactly.
+    const reportedAmount = Number(amount);
+    if (!Number.isFinite(reportedAmount) || Math.abs(reportedAmount - payment.amount) > 0.005) {
+      console.error(
+        `Payment webhook: amount ${amount} does not match payment ${payment.id} (${payment.amount}).`
+      );
+      return NextResponse.json({ error: "Amount does not match the payment" }, { status: 409 });
     }
 
     await prisma.payment.update({

@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatRelativeTime } from '@/lib/format';
 import { getTicketReplies, addTicketReply } from '@/lib/actions/support';
-import { uploadImage } from '@/lib/upload';
+import { uploadFile } from '@/lib/upload';
+import { IMAGE_ACCEPT, validateUpload } from '@/lib/upload-limits';
 import { toast } from 'sonner';
 
 type Reply = {
@@ -37,6 +38,16 @@ export function TicketChat({
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Object URLs are revoked whenever the preview is replaced, cleared, or sent.
+  // A long support thread would otherwise pin every screenshot the sender picked
+  // in memory for the life of the tab.
+  const setPreview = (next: string | null) => {
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return next;
+    });
+  };
+
   const fetchReplies = useCallback(async () => {
     const res = await getTicketReplies(ticketId);
     if (res.data) setReplies(res.data);
@@ -58,8 +69,16 @@ export function TicketChat({
     try {
       let imageUrl = '';
       if (imageFile) {
-        const url = await uploadImage(imageFile, 'support');
-        if (url) imageUrl = url;
+        const res = await uploadFile(imageFile, 'support', 'image');
+        // Abort the send rather than posting the reply without its attachment.
+        // A failed upload used to fall through silently, so the screenshot the
+        // whole message was about vanished while the reply read as delivered.
+        if ('error' in res) {
+          toast.error(res.error);
+          setSending(false);
+          return;
+        }
+        imageUrl = res.url;
       }
       const res = await addTicketReply(ticketId, message.trim(), imageUrl);
       if (res.error) {
@@ -67,7 +86,7 @@ export function TicketChat({
       } else {
         setMessage('');
         setImageFile(null);
-        setImagePreview(null);
+        setPreview(null);
         await fetchReplies();
       }
     } catch {
@@ -123,7 +142,7 @@ export function TicketChat({
         <div className="relative mx-4 mb-2 inline-block w-fit">
           <img src={imagePreview} alt="Preview" className="h-20 w-auto rounded-lg border object-cover" />
           <button
-            onClick={() => { setImageFile(null); setImagePreview(null); }}
+            onClick={() => { setImageFile(null); setPreview(null); }}
             className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-white text-xs flex items-center justify-center"
           >
             <X className="h-3 w-3" />
@@ -134,12 +153,18 @@ export function TicketChat({
       <div className="border-t border-border p-3 flex items-end gap-2">
         <label className="shrink-0 cursor-pointer rounded-md p-2 text-muted-foreground hover:bg-muted transition-colors">
           <Paperclip className="h-4 w-4" />
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+          <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) {
-              setImageFile(file);
-              setImagePreview(URL.createObjectURL(file));
-            }
+            // Cleared so removing an attachment and picking the same file again
+            // still fires a change event.
+            e.target.value = '';
+            if (!file) return;
+            // Told before the send rather than after a 5 MB body has gone over
+            // the wire. lib/upload.ts re-checks; this is only the courtesy.
+            const check = validateUpload(file, 'image');
+            if (!check.ok) { toast.error(check.error); return; }
+            setImageFile(file);
+            setPreview(URL.createObjectURL(file));
           }} />
         </label>
         <Input

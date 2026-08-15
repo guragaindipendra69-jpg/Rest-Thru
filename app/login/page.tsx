@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, UtensilsCrossed, BarChart3, Users, Receipt } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, UtensilsCrossed, BarChart3, Users, Receipt, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
@@ -24,6 +24,21 @@ import { login } from '@/lib/actions/auth';
 import { GoogleSignInButton } from '@/components/shared/google-sign-in';
 import { GoogleRegistrationDialog } from '@/components/shared/google-registration-dialog';
 
+// The single sign-in door for every restaurant role: owner, legacy STAFF,
+// receptionist and waiter. There used to be four of these forms — /owner/login,
+// /order/login, /reception/order/login and this one — which meant a new waiter
+// had to be told a different URL from the receptionist standing next to them, and
+// typing valid credentials into the wrong one worked but landed you on a screen
+// your role could not open. The role now decides the destination (see `login()`
+// and ROLE_HOME), so there is nothing to know.
+//
+// Consolidating the door does not consolidate the sessions: each portal still has
+// its own cookie, so one browser can hold an owner and a waiter session at once.
+//
+// /superadmin/login is deliberately still separate. `login()` refuses admin
+// credentials here via blockAdmin, with the same generic message as a wrong
+// password so this form cannot be used to discover that an account is an admin.
+
 const loginSchema = z.object({
   email: z.string().min(1, 'Email or phone is required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -37,11 +52,27 @@ const features = [
   { icon: Receipt, text: 'IRD-compliant billing' },
 ];
 
-export default function LoginPage() {
-  const router = useRouter();
+function LoginForm() {
+  const searchParams = useSearchParams();
+  // Forwarded by the proxy when it turns an unauthenticated request away. Passed
+  // through to `login()`, which reduces it to the user's own role home unless it
+  // is a same-origin path inside their portal — it is a query parameter, so it is
+  // never trusted as a navigation target on its own.
+  const redirectParam = searchParams.get('redirect') || undefined;
+  // guardArea appends ?closed=1 when it bounces a session whose restaurant the
+  // superadmin has closed mid-shift. Without this the user is returned to a bare
+  // login form with no idea why, and their password looks broken.
+  const closed = searchParams.get('closed') === '1';
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [googleUser, setGoogleUser] = useState<{ id: string; email: string; firstName: string; lastName: string; picture: string } | null>(null);
+  const [googleUser, setGoogleUser] = useState<{ id: string; email: string; firstName: string; lastName: string; picture: string; alreadyRegistered?: boolean; ticket?: string } | null>(null);
+
+  useEffect(() => {
+    if (closed) {
+      toast.error('This restaurant has been closed by the administrator. Please contact support.');
+    }
+  }, [closed]);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -54,23 +85,28 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const result = await login(data.email, data.password, undefined, { blockAdmin: true });
+      const result = await login(data.email.trim(), data.password, redirectParam, { blockAdmin: true });
       if (result?.error) {
         toast.error(result.error);
+        setIsLoading(false);
         return;
       }
       toast.success('Welcome back to Resthru!');
-      router.push(result.redirectTo || '/owner');
+      // Full navigation rather than router.push: waiters and receptionists share
+      // station devices, and this guarantees no in-memory store state (a previous
+      // waiter's open table, say) survives into the next person's session. The
+      // loading state is intentionally left on — the page is being replaced.
+      window.location.assign(result.redirectTo || '/owner');
     } catch {
       toast.error('An unexpected error occurred');
-    } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen">
-      {/* Left Panel - Branding */}
+    <div className="flex min-h-[100dvh]">
+      {/* Left Panel - Branding. Desktop only; on a waiter's phone the form gets
+          the whole viewport. */}
       <div className="relative hidden lg:flex lg:w-3/5 flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary-hover to-primary-deep p-12">
         {/* Decorative circles */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
@@ -168,9 +204,14 @@ export default function LoginPage() {
                       <FormControl>
                         <Input
                           id="email"
+                          // Station devices are phones: keep the keyboard from
+                          // capitalising or autocorrecting a username.
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          autoComplete="username"
                           placeholder="you@example.com or +977..."
                           disabled={isLoading}
-                          className="pl-10 h-11"
+                          className="pl-10 h-12 text-base"
                           {...field}
                         />
                       </FormControl>
@@ -201,15 +242,18 @@ export default function LoginPage() {
                           id="password"
                           placeholder="Enter your password"
                           type={showPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
                           disabled={isLoading}
-                          className="pl-10 pr-10 h-11"
+                          className="pl-10 pr-12 h-12 text-base"
                           {...field}
                         />
                       </FormControl>
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        // 36px target — thumb-reachable on a station phone.
+                        className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
                         disabled={isLoading}
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -223,10 +267,13 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 bg-primary hover:bg-primary-hover text-white font-medium"
+                className="w-full h-12 bg-primary hover:bg-primary-hover text-white font-semibold text-base"
               >
                 {isLoading ? (
-                  'Signing in...'
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Signing in…
+                  </>
                 ) : (
                   <>
                     Sign In
@@ -249,6 +296,9 @@ export default function LoginPage() {
 
           <GoogleSignInButton onSuccess={(user) => setGoogleUser(user)} />
 
+          {/* Staff whose logins the owner issued (receptionists, waiters) sign in
+              with the form above; only owners self-register, so the trial link
+              stays owner-facing. */}
           <p className="text-center text-sm text-muted-foreground mt-8">
             Don&apos;t have an account?{' '}
             <Link
@@ -265,9 +315,26 @@ export default function LoginPage() {
             open={!!googleUser}
             onOpenChange={(open) => { if (!open) setGoogleUser(null); }}
             user={googleUser}
+            alreadyRegistered={googleUser.alreadyRegistered}
           />
         )}
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams needs a Suspense boundary to keep this page from opting the
+  // whole route into client-side rendering.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[100dvh] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

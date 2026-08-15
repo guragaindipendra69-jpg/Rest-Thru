@@ -5,6 +5,7 @@ import {
   DASHBOARD_AUTH_ROUTES,
   SUPERADMIN_AUTH_ROUTES,
   ORDER_AUTH_ROUTES,
+  SHARED_LOGIN_PATH,
   portalForPath,
   portalForRole,
   sessionCookieName,
@@ -15,17 +16,27 @@ import { jwtSecret as secret } from "@/lib/jwt-secret";
 // Per-portal auth config. Each portal is guarded ONLY by its own session
 // cookie, so the same browser can hold a superadmin, owner, reception and
 // waiter session at once — signing in or out of one portal never disturbs
-// the others. A missing/invalid/wrong-role cookie simply lands on that
-// portal's login page instead of bouncing the user to a different area.
+// the others.
+//
+// Every restaurant portal turns an unauthenticated request away to the one
+// shared staff login, which routes by role on success. Sending them to the
+// retired per-portal URLs instead would cost a second redirect, since those are
+// now stubs that forward here anyway. They stay listed in `publicPaths` so the
+// stubs remain renderable for links already printed or bookmarked on station
+// tablets — dropping them there would bounce an anonymous visitor to
+// /login?redirect=/owner/login and land them back on a stub after signing in.
+//
+// The superadmin console keeps its own door: `login()` refuses admins on the
+// staff form and non-admins on the console form, so the two are not
+// interchangeable.
 const PORTAL_GUARDS: Record<
   SessionPortal,
   { loginPath: string; publicPaths: readonly string[] }
 > = {
   admin: { loginPath: "/superadmin/login", publicPaths: SUPERADMIN_AUTH_ROUTES },
-  owner: { loginPath: "/owner/login", publicPaths: DASHBOARD_AUTH_ROUTES },
-  // Receptionists sign in through the shared staff login door.
-  reception: { loginPath: "/owner/login", publicPaths: [] },
-  waiter: { loginPath: "/order/login", publicPaths: ORDER_AUTH_ROUTES },
+  owner: { loginPath: SHARED_LOGIN_PATH, publicPaths: DASHBOARD_AUTH_ROUTES },
+  reception: { loginPath: SHARED_LOGIN_PATH, publicPaths: [] },
+  waiter: { loginPath: SHARED_LOGIN_PATH, publicPaths: ORDER_AUTH_ROUTES },
 };
 
 export async function proxy(request: NextRequest) {

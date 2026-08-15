@@ -39,7 +39,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { FOOD_SUB_TYPES, SPICE_LEVELS, ALLERGENS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/format';
-import { uploadImage } from '@/lib/upload';
+import { uploadFile } from '@/lib/upload';
+import {
+  DOCUMENT_ACCEPT,
+  IMAGE_ACCEPT,
+  MAX_UPLOAD_LABEL,
+  validateUpload,
+  type UploadKind,
+} from '@/lib/upload-limits';
 import { useAuthStore } from '@/store/auth-store';
 import { portalBase } from '@/lib/portal';
 import {
@@ -51,6 +58,32 @@ import {
   getCategories, getMenuSettings, updateMenuSettings,
   bulkUpdateItemsAvailable, bulkAdjustItemPrices,
 } from '@/lib/actions/menu';
+
+/**
+ * Validate a picked file against the shared 5 MB / format rule and report the
+ * reason immediately, returning null when it is rejected.
+ *
+ * The three pickers on this page hold a `File` in state and only upload it when
+ * the dialog is saved, which is deliberate — an abandoned dialog should not leave
+ * an orphan in public/uploads. But it meant nothing checked the file at pick
+ * time, so an oversized one was accepted into state and failed later at save;
+ * the custom-menu dropzone even advertised "up to 20 MB" against a 5 MB server
+ * limit. Clearing `value` lets the same file be re-picked after a fix.
+ */
+function acceptPicked(
+  event: React.ChangeEvent<HTMLInputElement>,
+  kind: UploadKind = 'image'
+): File | null {
+  const file = event.target.files?.[0];
+  if (!file) return null;
+  const check = validateUpload(file, kind);
+  event.target.value = '';
+  if (!check.ok) {
+    toast.error(check.error);
+    return null;
+  }
+  return file;
+}
 
 const ITEM_TYPES = [
   { value: 'food', label: 'Food', icon: 'UtensilsCrossed', description: 'Cooked dishes, meals, snacks' },
@@ -347,8 +380,12 @@ export default function MenuPage() {
     try {
       let imageUrl = formData.image;
       if (imageFile) {
-        const url = await uploadImage(imageFile, 'menu-items');
-        if (url) imageUrl = url;
+        // Reports the reason instead of quietly keeping the old image: the
+        // previous `if (url) imageUrl = url` meant a rejected upload saved the
+        // dish with its former photo and said nothing about it.
+        const res = await uploadFile(imageFile, 'menu-items', 'image');
+        if ('error' in res) { toast.error(res.error); return; }
+        imageUrl = res.url;
       }
 
       const result = await updateMenuItem(editingItem.id, {
@@ -521,12 +558,20 @@ export default function MenuPage() {
     try {
       const updates: Record<string, string | null> = {};
       if (bgFile) {
-        const url = await uploadImage(bgFile, 'menu-bg');
-        if (url) { updates.menu_bg_url = url; setMenuSettings(s => ({ ...s, bgUrl: url })); }
+        const res = await uploadFile(bgFile, 'menu-bg', 'image');
+        if ('error' in res) { toast.error(res.error); return; }
+        updates.menu_bg_url = res.url;
+        setMenuSettings(s => ({ ...s, bgUrl: res.url }));
       }
       if (customMenuFile) {
-        const url = await uploadImage(customMenuFile, 'menu-custom');
-        if (url) { updates.menu_custom_url = url; setMenuSettings(s => ({ ...s, customMenuUrl: url })); }
+        // 'document', not 'image': this dropzone offers "image or PDF" and used
+        // to go through an image-only upload helper. A PDF was rejected server
+        // side and the null return was swallowed by an `if (url)`, so saving a
+        // PDF menu silently did nothing.
+        const res = await uploadFile(customMenuFile, 'menu-custom', 'document');
+        if ('error' in res) { toast.error(res.error); return; }
+        updates.menu_custom_url = res.url;
+        setMenuSettings(s => ({ ...s, customMenuUrl: res.url }));
       }
       if (Object.keys(updates).length > 0) {
         const result = await updateMenuSettings(restaurantId, updates);
@@ -990,7 +1035,7 @@ export default function MenuPage() {
                   {imagePreview
                     ? <div className="flex flex-col items-center gap-1"><img src={imagePreview} alt="preview" className="h-28 w-full object-cover rounded-md" /><p className="text-xs text-muted-foreground">Click to change</p></div>
                     : <><Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" /><p className="text-sm text-muted-foreground">Drop image here or click</p></>}
-                  <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); } }} />
+                  <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={e => { const f = acceptPicked(e); if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); } }} />
                 </label>
               </div>
 
@@ -1308,8 +1353,8 @@ export default function MenuPage() {
                       <p className="text-sm">Upload background image</p>
                       <p className="text-xs opacity-60">Recommended: 1200×400px</p>
                     </div>}
-                <input type="file" accept="image/*" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) { setBgFile(f); setBgPreview(URL.createObjectURL(f)); } }} />
+                <input type="file" accept={IMAGE_ACCEPT} className="hidden"
+                  onChange={e => { const f = acceptPicked(e); if (f) { setBgFile(f); setBgPreview(URL.createObjectURL(f)); } }} />
               </label>
             </div>
 
@@ -1331,7 +1376,7 @@ export default function MenuPage() {
                       </>
                     : <>
                         <p className="font-medium text-sm">Click to upload image or PDF</p>
-                        <p className="text-xs text-muted-foreground">PNG, JPG, PDF — up to 20 MB</p>
+                        <p className="text-xs text-muted-foreground">PNG, JPG, PDF — up to {MAX_UPLOAD_LABEL}</p>
                       </>}
                 </div>
                 {(customMenuName || menuSettings.customMenuUrl) && (
@@ -1340,8 +1385,8 @@ export default function MenuPage() {
                     <X className="w-4 h-4" />
                   </Button>
                 )}
-                <input type="file" accept="image/*,application/pdf" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) { setCustomMenuFile(f); setCustomMenuName(f.name); } }} />
+                <input type="file" accept={DOCUMENT_ACCEPT} className="hidden"
+                  onChange={e => { const f = acceptPicked(e, 'document'); if (f) { setCustomMenuFile(f); setCustomMenuName(f.name); } }} />
               </label>
               {menuSettings.customMenuUrl && !customMenuFile && (
                 <a href={menuSettings.customMenuUrl} target="_blank" rel="noreferrer"

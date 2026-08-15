@@ -42,7 +42,7 @@ export function DishRow({
             className="mb-1 inline-block font-sans text-[9px] font-semibold uppercase tracking-[0.2em]"
             style={{ color: "var(--gold)" }}
           >
-            ◆ Chef's Pick
+            ◆ Chef&apos;s Pick
           </span>
         )}
         <div className="flex items-baseline gap-1">

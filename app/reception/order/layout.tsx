@@ -2,7 +2,7 @@
 // The parent reception/layout.tsx already guards for RECEPTIONIST; this is
 // defense-in-depth for /reception/order/* sub-routes.
 import { guardArea } from '@/lib/auth-guard';
-import { ORDER_AUTH_ROUTES } from '@/lib/constants';
+import { ORDER_AUTH_ROUTES, SHARED_LOGIN_PATH } from '@/lib/constants';
 
 export default async function ReceptionOrderLayout({
   children,
@@ -11,7 +11,7 @@ export default async function ReceptionOrderLayout({
 }) {
   await guardArea({
     allowedRoles: ['RECEPTIONIST'],
-    loginPath: '/owner/login',
+    loginPath: SHARED_LOGIN_PATH,
     publicPaths: ORDER_AUTH_ROUTES,
   });
 

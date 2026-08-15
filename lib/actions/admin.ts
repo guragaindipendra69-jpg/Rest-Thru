@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth";
 import { logActivity } from "./logs";
 import { validatePhone } from "@/lib/phone-validator";
 import { chartColor, paymentColor } from "@/lib/constants";
+import { restaurantPurgeOperations } from "@/lib/restaurant-purge";
 
 // Every export in this module returns cross-tenant platform data, so each one
 // must independently verify the caller is an admin: Server Actions are invocable
@@ -989,11 +990,11 @@ export async function updateRestaurant(
   }
 }
 
-// Permanently delete a restaurant and everything that hangs off it. None of the
-// relations declare ON DELETE CASCADE, so every dependent row is removed in
-// foreign-key order inside a single transaction — the whole tenant is erased
-// atomically, or nothing is. This also deletes the owner / reception / waiter
-// user rows, since those accounts can't exist without their restaurant.
+// Permanently delete a restaurant and everything that hangs off it. The
+// foreign-key-ordered delete list lives in lib/restaurant-purge.ts and is shared
+// with the owner-facing self-delete, so the two cannot drift — the whole tenant
+// is erased atomically, or nothing is. This also deletes the owner / reception /
+// waiter user rows, since those accounts can't exist without their restaurant.
 export async function deleteRestaurant(id: string) {
   await requireAdmin();
   try {
@@ -1003,37 +1004,7 @@ export async function deleteRestaurant(id: string) {
     });
     if (!restaurant) return { error: "Restaurant not found" };
 
-    await prisma.$transaction([
-      // Leaf rows that reference other children (must go first).
-      prisma.payment.deleteMany({ where: { bill: { restaurantId: id } } }),
-      prisma.inventoryHistory.deleteMany({ where: { item: { restaurantId: id } } }),
-      prisma.orderItem.deleteMany({ where: { order: { restaurantId: id } } }),
-      prisma.addOn.deleteMany({ where: { menuItem: { restaurantId: id } } }),
-      // Rows that reference orders / tables / menu items.
-      prisma.bill.deleteMany({ where: { restaurantId: id } }),
-      prisma.barTab.deleteMany({ where: { restaurantId: id } }),
-      prisma.reservation.deleteMany({ where: { restaurantId: id } }),
-      prisma.order.deleteMany({ where: { restaurantId: id } }),
-      prisma.menuItem.deleteMany({ where: { restaurantId: id } }),
-      prisma.category.deleteMany({ where: { restaurantId: id } }),
-      prisma.inventoryItem.deleteMany({ where: { restaurantId: id } }),
-      prisma.shift.deleteMany({ where: { restaurantId: id } }),
-      prisma.restaurantTable.deleteMany({ where: { restaurantId: id } }),
-      prisma.staff.deleteMany({ where: { restaurantId: id } }),
-      prisma.notification.deleteMany({ where: { restaurantId: id } }),
-      prisma.activityLog.deleteMany({ where: { restaurantId: id } }),
-      prisma.kpiCard.deleteMany({ where: { restaurantId: id } }),
-      prisma.waitlistEntry.deleteMany({ where: { restaurantId: id } }),
-      prisma.customer.deleteMany({ where: { restaurantId: id } }),
-      prisma.coupon.deleteMany({ where: { restaurantId: id } }),
-      prisma.corporateAccount.deleteMany({ where: { restaurantId: id } }),
-      prisma.taxRate.deleteMany({ where: { restaurantId: id } }),
-      prisma.space.deleteMany({ where: { restaurantId: id } }),
-      prisma.operatingHours.deleteMany({ where: { restaurantId: id } }),
-      prisma.subscription.deleteMany({ where: { restaurantId: id } }),
-      prisma.user.deleteMany({ where: { restaurantId: id } }),
-      prisma.restaurant.delete({ where: { id } }),
-    ]);
+    await prisma.$transaction(restaurantPurgeOperations(id));
 
     revalidatePath("/superadmin/restaurants");
     return { success: true };
@@ -1151,8 +1122,14 @@ async function findRestaurantOwner(restaurantId: string) {
   });
 }
 
-// Reset a restaurant owner's login password. Mirrors the hashing used everywhere
-// else (bcrypt cost 12) and the 6-char minimum from auth.ts's resetPassword.
+// Reset a restaurant owner's login password. Same hashing as everywhere else
+// (bcrypt cost 12) and the same 6-char minimum as changePassword in auth.ts.
+//
+// This is the only recovery path for a locked-out owner. Self-serve reset was
+// removed (see the note in lib/actions/auth.ts), so an owner who cannot sign in
+// goes through support and a platform admin runs this from the superadmin console.
+// requireAdmin() is what makes that safe: it is the difference between this and
+// what was deleted.
 export async function resetRestaurantOwnerPassword(restaurantId: string, newPassword: string) {
   const session = await requireAdmin();
   if (!newPassword || newPassword.length < 6) {

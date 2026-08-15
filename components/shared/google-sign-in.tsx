@@ -62,6 +62,11 @@ export type GoogleSignInResult = GoogleUser & {
   hasRestaurant?: boolean;
   alreadyRegistered?: boolean;
   restaurant?: any;
+  // Short-lived signed proof that this account's Google credential was verified,
+  // minted server-side by `googleLogin`. The registration dialog hands it back to
+  // whichever follow-up action it calls; those derive the account from it rather
+  // than trusting an id from the browser.
+  ticket?: string;
 };
 
 interface GoogleSignInButtonProps {
@@ -103,6 +108,7 @@ export function GoogleSignInButton({
           hasRestaurant: result.hasRestaurant,
           alreadyRegistered: result.alreadyRegistered,
           restaurant: result.restaurant,
+          ticket: result.ticket,
         });
         return;
       }

@@ -40,16 +40,21 @@ export default function StaffPage() {
         setStaffMembers(result.data.map((s: any) => {
           const role = s.role?.toUpperCase() || '';
           const firstName = s.firstName || '';
+          const lastName = s.lastName || '';
           return {
             id:         s.id,
-            name:       firstName + ' ' + (s.lastName || ''),
+            name:       `${firstName} ${lastName}`.trim(),
             role,
             phone:      s.phoneNumber || '',
             email:      s.email || '',
             status:     s.status === 'ACTIVE' ? 'On Duty' : 'Off Duty',
             joinedDate: s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             salary:     s.salary || 0,
-            avatar:     (firstName.split(' ')[0]?.[0] || 'S').toUpperCase() + ((firstName.split(' ')[1]?.[0] || 'T').toUpperCase()),
+            // Initials from the two stored name columns. Reading both off
+            // firstName gave every single-name staff member the same "ST"
+            // placeholder, and the trailing space from the old concatenation
+            // came back as an editable value in the edit form.
+            avatar:     ((firstName[0] || 'S') + (lastName[0] || '')).toUpperCase(),
             avatarUrl:  s.profileImage || null,
             address:    s.address || undefined,
             dateOfBirth: s.dateOfBirth ? new Date(s.dateOfBirth).toISOString().split('T')[0] : null,
@@ -83,6 +88,14 @@ export default function StaffPage() {
     if (res.error) { toast.error(res.error); return; }
     setStaffMembers((prev) => prev.filter((s) => s.id !== member.id));
     toast.success(`${member.name} deleted`);
+  };
+
+  // One updater for both edit entry points (the row pencil and the detail
+  // dialog), so a save made from the profile view refreshes the row behind it
+  // and the open dialog together.
+  const handleUpdated = (updated: StaffMember) => {
+    setStaffMembers((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
+    setSelectedStaff((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
   };
 
   return (
@@ -132,9 +145,7 @@ export default function StaffPage() {
         staff={filteredStaff}
         isReady={initialized && !isLoading}
         onSelect={setSelectedStaff}
-        onUpdated={(updated) =>
-          setStaffMembers((prev) => prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)))
-        }
+        onUpdated={handleUpdated}
         onDeleted={handleDelete}
       />
 
@@ -143,6 +154,7 @@ export default function StaffPage() {
           staff={selectedStaff}
           open={!!selectedStaff}
           onOpenChange={(open) => { if (!open) setSelectedStaff(null); }}
+          onUpdated={handleUpdated}
         />
       )}
 

@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Upload, Loader2, Check, ImageIcon } from "lucide-react";
-import { uploadImage } from "@/lib/upload";
+import { uploadFile } from "@/lib/upload";
+import { IMAGE_ACCEPT, MAX_UPLOAD_LABEL, validateUpload } from "@/lib/upload-limits";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -45,27 +46,31 @@ export default function SelectImageModal({
     async (files: FileList | null) => {
       const file = files?.[0];
       if (!file) return;
-      if (!file.type.startsWith("image/")) {
-        toast.error("Please choose an image file");
+
+      // Shared rule rather than a local one. This picker used to cap at 2 MB and
+      // gate on `file.type.startsWith("image/")`, which rejected a phone's HEIC
+      // outright — browsers report an empty File.type for it.
+      const check = validateUpload(file, "image");
+      if (!check.ok) {
+        toast.error(check.error);
+        if (inputRef.current) inputRef.current.value = "";
         return;
       }
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error("Image must be under 2 MB");
-        return;
-      }
+
       setUploading(true);
       try {
-        const url = await uploadImage(file, folder);
-        if (!url) {
-          toast.error("Upload failed");
+        const res = await uploadFile(file, folder, "image");
+        if ("error" in res) {
+          toast.error(res.error);
           return;
         }
-        onSelect(url);
+        onSelect(res.url);
         onOpenChange(false);
       } catch (err: any) {
         toast.error(err?.message || "Upload failed");
       } finally {
         setUploading(false);
+        if (inputRef.current) inputRef.current.value = "";
       }
     },
     [folder, onSelect, onOpenChange]
@@ -178,7 +183,7 @@ export default function SelectImageModal({
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 className="hidden"
                 onChange={(e) => handleFiles(e.target.files)}
               />
@@ -188,7 +193,7 @@ export default function SelectImageModal({
               <p className="font-medium text-muted-foreground">
                 {uploading ? "Uploading…" : "Drag 'n' drop a file here, or click to select"}
               </p>
-              <p className="text-xs text-muted-foreground">One image, up to 2 MB</p>
+              <p className="text-xs text-muted-foreground">One image, up to {MAX_UPLOAD_LABEL}</p>
             </div>
           )}
         </div>

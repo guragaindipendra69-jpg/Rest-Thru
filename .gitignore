@@ -19,6 +19,9 @@
 .DS_Store
 *.pem
 
+# Office lock files, left beside a doc while it is open in Word (~$NAME.md)
+~$*
+
 # debug
 npm-debug.log*
 yarn-debug.log*

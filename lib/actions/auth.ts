@@ -6,6 +6,8 @@ import { createSession, clearSession, getSession } from "@/lib/auth";
 import { isApproverRole } from "@/lib/manager-approval";
 import { logActivity } from "./logs";
 import { validatePhone } from "@/lib/phone-validator";
+import { safeRedirectForRole } from "@/lib/constants";
+import { verifyGoogleTicket } from "@/lib/google-ticket";
 
 // Validate that a username is in Gmail format (a valid email ending in @gmail.com).
 export async function isValidGmail(username: string): Promise<boolean> {
@@ -21,64 +23,35 @@ function generateUsername(email: string): string {
   return `${base}_${Math.random().toString(36).substring(2, 7)}`;
 }
 
-export async function createSessionFromSupabaseLogin(userId: string, email: string, fullName?: string) {
-  try {
-    const nameParts = (fullName || email || "").trim().split(" ");
 
-    // Find or create a Prisma user
-    let prismaUser = await prisma.user.findUnique({ where: { email } });
-    if (!prismaUser) {
-      prismaUser = await prisma.user.create({
-        data: {
-          email,
-          username: generateUsername(email),
-          firstName: nameParts[0] || "",
-          lastName: nameParts.slice(1).join(" ") || "",
-          role: "RESTAURANT_OWNER",
-          isActive: true,
-        },
-      });
-    }
+// `createSessionFromSupabaseLogin` used to live here and has been removed.
+//
+// It was left over from the abandoned Supabase auth path and had no call sites
+// anywhere in the app — but a `"use server"` export is a public POST endpoint
+// whether or not the app calls it, and this one took an *email address*, found or
+// created that user, and minted a session with whatever role the row carried.
+// `createSession` picks the portal cookie from that role, so posting a known
+// admin email to it returned a working superadmin cookie. Nothing more than the
+// address was required.
+//
+// Prisma is the active ORM (the Supabase env vars are vestigial), so there is no
+// flow to preserve. Deleting the export is the fix: an unused endpoint cannot be
+// secured by being unused. If a Supabase path is ever revived, it must verify a
+// Supabase-issued token rather than trust an emailed identity, the way
+// `googleLogin` verifies its credential before anyone is signed in.
 
-    // Find restaurant by ownerId (may have been inserted via Supabase already)
-    let restaurant = await prisma.restaurant.findFirst({
-      where: { ownerId: userId },
-      select: { id: true, isActive: true },
-    });
-
-    // Same kill switch as the password path: an owner whose restaurant the
-    // superadmin has closed cannot get a session, even via Google sign-in.
-    if (restaurant && !restaurant.isActive) {
-      return { error: "This restaurant has been closed by the administrator. Please contact support." };
-    }
-
-    // Link Prisma user to restaurant if not already linked
-    if (restaurant && !prismaUser.restaurantId) {
-      await prisma.user.update({
-        where: { id: prismaUser.id },
-        data: { restaurantId: restaurant.id },
-      });
-      prismaUser.restaurantId = restaurant.id;
-    }
-
-    await createSession({
-      id: prismaUser.id,
-      username: prismaUser.username || "",
-      role: prismaUser.role,
-      firstName: prismaUser.firstName,
-      lastName: prismaUser.lastName,
-      email: prismaUser.email,
-      restaurantId: restaurant?.id ?? prismaUser.restaurantId ?? null,
-    });
-
-    return { success: true, redirectTo: "/owner" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("createSessionFromSupabaseLogin error:", message, err instanceof Error ? err.stack : "");
-    return { error: "Failed to create session" };
-  }
-}
-
+/**
+ * The one credential check behind every sign-in form.
+ *
+ * `redirectTo` is where the caller would like the user to land, not where they
+ * will: `safeRedirectForRole` reduces it to the user's own role home unless it is
+ * a same-origin path inside the portal their role belongs to. Since the shared
+ * /login form serves owners, staff, receptionists and waiters at once, that
+ * parameter arrives from a query string on behalf of four different portals — it
+ * is caller input reaching a navigation, so it is validated here rather than in
+ * the form. Callers no longer need to pass it at all to get correct routing; the
+ * role decides.
+ */
 export async function login(
   username: string,
   password: string,
@@ -153,7 +126,7 @@ export async function login(
       restaurantId: user.restaurantId,
     });
 
-    const destination = redirectTo || (user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/superadmin" : user.role === "RECEPTIONIST" ? "/reception" : user.role === "WAITER" ? "/order" : "/owner");
+    const destination = safeRedirectForRole(user.role, redirectTo);
     return { success: true, redirectTo: destination };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -374,7 +347,19 @@ export async function getUserFromSession() {
   };
 }
 
-export async function completeGoogleRegistration(userId: string, data: {
+/**
+ * Finishes Google sign-up: records the phone, creates or updates the restaurant
+ * and subscription, and signs the new owner in.
+ *
+ * The account comes from the signed ticket `googleLogin` issued after verifying
+ * the Google credential, never from an argument. It used to take a `userId`:
+ * because every export of a `"use server"` module is a public POST endpoint,
+ * that let anyone who knew an account id overwrite that restaurant's name,
+ * address and subscription plan, and then walk away with a session cookie for
+ * the account — `createSession` picks the portal cookie from the role on the
+ * database row, so a superadmin's id produced a superadmin session.
+ */
+export async function completeGoogleRegistration(ticket: string, data: {
   phone?: string;
   restaurantName: string;
   restaurantType: string;
@@ -384,6 +369,11 @@ export async function completeGoogleRegistration(userId: string, data: {
   planId?: string;
 }) {
   try {
+    const userId = await verifyGoogleTicket(ticket);
+    if (!userId) {
+      return { error: "Your sign-in session expired. Please sign in with Google again." };
+    }
+
     if (data.phone) {
       const phoneResult = validatePhone(data.phone);
       if (!phoneResult.valid) return { error: phoneResult.error || "Invalid phone number" };
@@ -396,6 +386,16 @@ export async function completeGoogleRegistration(userId: string, data: {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { error: "User not found" };
 
+    // Re-checked here rather than trusted from ticket-issue time: the ticket
+    // lives for minutes, and this call both mints a session and writes the
+    // restaurant, so neither may happen for an account disabled in between.
+    if (!user.isActive) {
+      return { error: "This account has been deactivated. Please contact support." };
+    }
+    if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+      return { error: "Please sign in through the admin console." };
+    }
+
     // Update phone if provided
     if (data.phone) {
       await prisma.user.update({
@@ -404,10 +404,17 @@ export async function completeGoogleRegistration(userId: string, data: {
       });
     }
 
-    // Check if user already has a restaurant
-    const existingRestaurant = user.restaurantId
-      ? await prisma.restaurant.findUnique({ where: { id: user.restaurantId } })
-      : null;
+    // Matched on ownerId, with the user's own link column as a fallback. This
+    // used to look only at `user.restaurantId`: `googleLogin` decides "already
+    // registered" from `ownerId`, so an owner whose link column was never
+    // populated read as having no restaurant here and got a second one created,
+    // leaving two outlets owned by one account and the user pointed at the new
+    // empty one.
+    const existingRestaurant =
+      (await prisma.restaurant.findFirst({ where: { ownerId: userId } })) ??
+      (user.restaurantId
+        ? await prisma.restaurant.findUnique({ where: { id: user.restaurantId } })
+        : null);
 
     let restaurantId: string;
 
@@ -424,6 +431,15 @@ export async function completeGoogleRegistration(userId: string, data: {
         },
       });
       restaurantId = existingRestaurant.id;
+
+      // Repair the link if it was the missing piece that sent us down the
+      // fallback above, so the next sign-in resolves the outlet directly.
+      if (user.restaurantId !== existingRestaurant.id) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { restaurantId: existingRestaurant.id },
+        });
+      }
     } else {
       // Create new restaurant
       const restaurant = await prisma.restaurant.create({
@@ -498,8 +514,22 @@ export async function completeGoogleRegistration(userId: string, data: {
   }
 }
 
+// ── Password changes ──
+//
+// The one and only way a password is changed from outside the superadmin console.
+// The account comes from the session cookie, never from an argument.
+//
+// It used to take a `username` and look the account up. Every export of a
+// "use server" module is a public POST endpoint, so that made this an
+// unauthenticated oracle for anyone who could post to it: its two distinct error
+// strings ("User not found" versus "Current password is incorrect") confirmed
+// which accounts exist and then whether a guessed password was right, and a
+// caller who knew someone else's current password could change it for them.
+//
+// The current password is still required even though the session already proves
+// who is calling. That is what stops a borrowed or hijacked session from locking
+// the real owner out of their own account.
 export async function changePassword(
-  username: string,
   currentPassword: string,
   newPassword: string
 ) {
@@ -507,12 +537,18 @@ export async function changePassword(
     return { error: "New password must be at least 6 characters" };
   }
 
+  const session = await getSession();
+  if (!session?.id) return { error: "Not authenticated" };
+
   const user = await prisma.user.findFirst({
-    where: { OR: [{ username }, { email: username }, { phoneNumber: username }], isActive: true },
+    where: { id: session.id, isActive: true },
+    select: { id: true, passwordHash: true },
   });
 
-  if (!user || !user.passwordHash) {
-    return { error: "User not found" };
+  // Deliberately the same message as the missing session above: a signed-in
+  // caller learns nothing about the account beyond "not you".
+  if (!user?.passwordHash) {
+    return { error: "Not authenticated" };
   }
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -525,6 +561,22 @@ export async function changePassword(
     where: { id: user.id },
     data: { passwordHash: hash },
   });
+
+  // Worth an audit line, but never at the cost of the change itself. Skipped for
+  // platform admins: ActivityLog.restaurantId is a required foreign key and they
+  // carry no restaurantId, so the insert would fail.
+  if (session.restaurantId) {
+    try {
+      await logActivity(session, {
+        actionType: "PASSWORD_CHANGE",
+        entityType: "User",
+        entityId: user.id,
+        description: "Account password changed",
+      });
+    } catch (logErr) {
+      console.error("Failed to log password change:", logErr);
+    }
+  }
 
   return { success: true };
 }
@@ -811,24 +863,24 @@ export async function deleteWaiterLogin(userId: string) {
   }
 }
 
-export async function resetPassword(username: string, newPassword: string) {
-  if (newPassword.length < 6) {
-    return { error: "New password must be at least 6 characters" };
-  }
-
-  const user = await prisma.user.findFirst({
-    where: { OR: [{ username }, { email: username }, { phoneNumber: username }], isActive: true },
-  });
-
-  if (!user) {
-    return { error: "User not found" };
-  }
-
-  const hash = await bcrypt.hash(newPassword, 12);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { passwordHash: hash },
-  });
-
-  return { success: true };
-}
+// ── No self-serve password reset ──
+//
+// There was a `resetPassword(username, newPassword)` here. It set any account's
+// password given only a username, email, or phone number: no session, no current
+// password, no emailed token, no expiry, and no role restriction, so it reset
+// SUPER_ADMIN accounts too. Being an export of a "use server" module made it a
+// public POST endpoint, i.e. a one-request takeover of any account on the
+// platform. The /owner/forgot-password page that called it generated its
+// "verification code" in the browser and compared it against React state, so the
+// UI alone was enough — no knowledge of server actions required.
+//
+// A correct reset needs a secret delivered out of band (a token mailed or texted
+// to an address already on the account) and there is no mailer or SMS sender in
+// this repo, so the flow cannot be rebuilt yet. Until then recovery is
+// `resetRestaurantOwnerPassword` in lib/actions/admin.ts, which sits behind
+// requireAdmin() and is wired to the superadmin console: owners go through
+// platform support, and staff go through their own owner, who can already set
+// staff passwords. Changing your own password is `changePassword` above.
+//
+// If this comes back, it must issue a single-use token with an expiry against a
+// contact already stored on the user, and verify that token server side.

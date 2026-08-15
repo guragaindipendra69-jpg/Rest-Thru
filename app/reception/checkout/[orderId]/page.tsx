@@ -12,7 +12,12 @@ import { toast } from "sonner";
 import { getTableCheckout, settleOrder } from "@/lib/actions/orders";
 import { formatCurrency, formatBSDate, formatBillNo, formatInvoiceNo } from "@/lib/format";
 import { formatReceiptHTML, printReceipt, downloadReceiptPdf } from "@/lib/printing";
-import { splitVatInclusive, NEPAL_VAT_RATE } from "@/lib/vat";
+import { calculateBill } from "@/lib/billing/calculate";
+import {
+  resolveBillingConfig,
+  registrationTypeFor,
+  type PricingMode,
+} from "@/lib/billing/config";
 import { amountInWords } from "@/lib/billing/amount-in-words";
 
 const PAYMENT_METHODS = [
@@ -68,15 +73,45 @@ export default function TableCheckoutPage() {
     return Math.min(Math.max(value, 0), subtotal);
   }, [discountInput, discountMode, subtotal]);
 
-  const totalAmount = subtotal + serviceCharge - discount;
-  const vatRegistered = !!data?.restaurant?.vatRegistered;
-  const taxRate = data?.restaurant?.taxPercentage || NEPAL_VAT_RATE;
+  /**
+   * The quote comes from the same engine that will issue the bill.
+   *
+   * This screen used to compute `subtotal + serviceCharge - discount` and carve
+   * VAT out of it with a hardcoded 13 percent. That is the INCLUSIVE reading of
+   * the menu price, so an ADDITIVE outlet — where VAT stacks on top — was shown
+   * a total roughly a VAT-rate below what `settleOrder` charges, and the tender
+   * and change the cashier worked from were both short. Calling calculateBill
+   * with the outlet's own pricing mode and rate means the estimate on screen and
+   * the tax invoice printed after checkout cannot disagree.
+   */
+  const quote = useMemo(() => {
+    const restaurant = data?.restaurant ?? null;
+    const lines = (data?.items ?? []).map((i: any) => ({
+      description: i.name,
+      quantity: i.quantity,
+      unitPrice: i.rate,
+      vatExempt: Boolean(i.vatExempt),
+      hsCode: i.hsCode ?? null,
+    }));
+    if (serviceCharge > 0) {
+      lines.push({ description: "Service Charge", quantity: 1, unitPrice: serviceCharge });
+    }
+    return calculateBill({
+      lines,
+      config: resolveBillingConfig(restaurant),
+      pricingMode: (restaurant?.pricingMode as PricingMode) ?? "INCLUSIVE",
+      registrationType: registrationTypeFor(restaurant ?? {}),
+      discountAmount: discount,
+      // Service charge is already a line above; applying it again double-charges.
+      applyServiceCharge: false,
+    });
+  }, [data, serviceCharge, discount]);
 
-  // Menu prices are VAT-inclusive, so the tax component is carved out of the
-  // gross rather than added on top — same rule the server bills by.
-  const { taxable, vat } = vatRegistered
-    ? splitVatInclusive(totalAmount, taxRate)
-    : { taxable: totalAmount, vat: 0 };
+  const totalAmount = quote.grandTotal;
+  const taxable = quote.taxableValue;
+  const vat = quote.vatAmount;
+  const vatRegistered = !!data?.restaurant?.vatRegistered;
+  const taxRate = quote.vatRate;
 
   const tenderAmount = parseFloat(tender) || 0;
   const change = tenderAmount > totalAmount ? tenderAmount - totalAmount : 0;

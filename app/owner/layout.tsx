@@ -6,7 +6,7 @@ import { Suspense } from 'react';
 import DashboardShell from './shell';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { guardArea } from '@/lib/auth-guard';
-import { DASHBOARD_AUTH_ROUTES } from '@/lib/constants';
+import { DASHBOARD_AUTH_ROUTES, SHARED_LOGIN_PATH } from '@/lib/constants';
 
 export default async function DashboardLayout({
   children,
@@ -20,7 +20,7 @@ export default async function DashboardLayout({
   // render authenticated content. Owner + legacy STAFF only.
   await guardArea({
     allowedRoles: ['RESTAURANT_OWNER', 'STAFF'],
-    loginPath: '/owner/login',
+    loginPath: SHARED_LOGIN_PATH,
     publicPaths: DASHBOARD_AUTH_ROUTES,
   });
 

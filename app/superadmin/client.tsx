@@ -68,7 +68,7 @@ export default function AdminClient({
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
-              <CardHeader><CardTitle className="text-sm font-medium">Today's Revenue</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm font-medium">Today&apos;s Revenue</CardTitle></CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{formatCurrency(stats.todayGMV)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Gross Merchandise Value</p>

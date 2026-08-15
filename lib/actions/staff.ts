@@ -40,6 +40,18 @@ interface StaffInput {
   emergencyContactPhone?: string;
   bloodGroup?: string;
   salary?: number;
+  status?: string;
+}
+
+// The UI works with one "Full Name" field but the table stores firstName and
+// lastName. Writing the whole string into firstName and leaving lastName as it
+// was made the directory render "Ram Bahadur Bahadur" after an edit, because
+// the page reads back `firstName + ' ' + lastName`. Split on the last space so
+// both columns are always rewritten together.
+function splitName(full: string): { firstName: string; lastName: string } {
+  const parts = full.trim().split(/\s+/);
+  if (parts.length < 2) return { firstName: parts[0] || "", lastName: "" };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
 }
 
 export async function addStaff(data: StaffInput) {
@@ -59,10 +71,14 @@ export async function addStaff(data: StaffInput) {
       if (!ecResult.valid) return { error: `Emergency contact phone: ${ecResult.error || "Invalid number"}` };
     }
 
+    const { firstName, lastName } = splitName(data.name);
+    if (!firstName) return { error: "Staff name is required" };
+
     const member = await prisma.staff.create({
       data: {
         restaurantId,
-        firstName: data.name,
+        firstName,
+        lastName,
         role: data.role.toUpperCase(),
         phoneNumber: data.phone,
         email: data.email || "",
@@ -102,25 +118,39 @@ export async function updateStaff(data: StaffInput & { id: string }) {
       if (!ecResult.valid) return { error: `Emergency contact phone: ${ecResult.error || "Invalid number"}` };
     }
 
+    const { firstName, lastName } = splitName(data.name);
+    if (!firstName) return { error: "Staff name is required" };
+
     // updateMany rather than update: the restaurantId predicate becomes part of
     // the write, so another tenant's staff id matches 0 rows instead of being
     // silently updated. Avoids a racy read-then-write ownership check too.
+    //
+    // The image columns are nulled on an explicit `null` rather than coerced
+    // through `|| undefined`. Prisma reads `undefined` as "leave this column
+    // alone", so the old form could attach a photo but never take one off — the
+    // Remove button in the edit dialog had no way to reach the database.
     const { count } = await prisma.staff.updateMany({
       where: { id: data.id, restaurantId: session.restaurantId },
       data: {
-        firstName: data.name,
+        firstName,
+        lastName,
         role: data.role.toUpperCase(),
         phoneNumber: data.phone,
         email: data.email || "",
-        profileImage: data.avatarUrl || undefined,
-        address: data.address || undefined,
+        profileImage: data.avatarUrl ?? null,
+        address: data.address || null,
         dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
         identityDocType: data.identityDocType || "",
-        identityDocImage: data.identityDocImage || undefined,
+        identityDocImage: data.identityDocImage ?? null,
         emergencyContactName: data.emergencyContactName || "",
         emergencyContactPhone: data.emergencyContactPhone || "",
         bloodGroup: data.bloodGroup || "",
         salary: data.salary ?? undefined,
+        // Only written when the caller actually sends it. A bare default of
+        // ACTIVE would let any future second caller that does not carry the
+        // status field silently reactivate a deactivated staff member, which is
+        // the same trap updateCategory hit with display_order and is_active.
+        status: data.status ? (data.status === "INACTIVE" ? "INACTIVE" : "ACTIVE") : undefined,
       },
     });
     if (count === 0) return { error: "Staff member not found" };

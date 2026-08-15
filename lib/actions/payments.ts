@@ -141,6 +141,10 @@ export async function getPendingWalletPayments(billId: string) {
     const payments = await prisma.payment.findMany({
       where: {
         billId,
+        // Scoped through the bill: `billId` arrives from the caller, and without
+        // this any signed-in user could read another outlet's payment rows —
+        // amounts, methods and gateway references — from a bill id alone.
+        bill: { restaurantId: session.restaurantId },
         method: { in: ["ESEWA", "KHALTI", "FONEPAY"] },
         verified: false,
       },

@@ -24,10 +24,14 @@ import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
 import {
   Users, Search, RefreshCw, Loader2, ShieldCheck, ShieldAlert, KeyRound,
-  Upload, ExternalLink, BadgeCheck, Ban, IdCard, UserCog, Building2,
+  Upload, ExternalLink, BadgeCheck, Ban, IdCard, UserCog, Building2, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadImage } from '@/lib/upload';
+import { uploadFile } from '@/lib/upload';
+import {
+  DOCUMENT_ACCEPT, IMAGE_ACCEPT, MAX_UPLOAD_LABEL, isPdf, validateUpload,
+  type UploadKind,
+} from '@/lib/upload-limits';
 import {
   listOwners, getOwnerDetail, updateOwnerProfile, updateOwnerIdentity,
   setOwnerVerified, setOwnerPassword, setOwnerActive, updateOwnerNotes,
@@ -250,14 +254,38 @@ function OwnerSheet({ ownerId, onClose, onChanged }: { ownerId: string | null; o
     onChanged();
   };
 
-  const doUpload = async (file: File, target: 'profileImage' | 'identityDocImage' | 'identityDocBackImage') => {
+  // KYC uploads. The two identity slots take a PDF as well as a photo: a
+  // citizenship scan arrives from a scanner or a phone-exported PDF as often as
+  // it does from a camera, and pinning them to 'image' refused those outright.
+  //
+  // These keep their own pickers rather than adopting components/shared/
+  // upload-field.tsx — the profile slot is an inline button beside an existing
+  // Avatar and the document slots are a fixed 16:10 pair, neither of which is a
+  // shape UploadField renders. They share the rules instead, from
+  // lib/upload-limits.ts, so the limit here is the limit lib/upload.ts enforces.
+  const doUpload = async (
+    file: File,
+    target: 'profileImage' | 'identityDocImage' | 'identityDocBackImage'
+  ) => {
+    const kind: UploadKind = target === 'profileImage' ? 'image' : 'document';
+
+    // Checked here so an oversized scan is refused before a multi-megabyte body
+    // goes over the wire. The action re-checks; this is the courtesy, not the gate.
+    const check = validateUpload(file, kind);
+    if (!check.ok) { toast.error(check.error); return; }
+
     setUploading(target);
-    const url = await uploadImage(file, `owner-${target}`);
+    const res = await uploadFile(file, `owner-${target}`, kind);
     setUploading(null);
-    if (!url) { toast.error('Image upload failed'); return; }
-    if (target === 'profileImage') setProfile((p) => ({ ...p, profileImage: url }));
-    else setIdentity((i) => ({ ...i, [target]: url }));
-    toast.success('Image uploaded — remember to save');
+
+    // Reports why. A rejected file used to surface as a flat "Image upload
+    // failed", which for an unsupported format or an over-limit scan tells the
+    // admin nothing they can act on.
+    if ('error' in res) { toast.error(res.error); return; }
+
+    if (target === 'profileImage') setProfile((p) => ({ ...p, profileImage: res.url }));
+    else setIdentity((i) => ({ ...i, [target]: res.url }));
+    toast.success('Uploaded — remember to save');
   };
 
   const saveProfile = async () => {
@@ -437,7 +465,7 @@ function OwnerSheet({ ownerId, onClose, onChanged }: { ownerId: string | null; o
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
                   {detail.isVerified
-                    ? <span className="text-success">This owner's identity is verified{detail.verifiedAt ? ` (${fmtDate(detail.verifiedAt)})` : ''}.</span>
+                    ? <span className="text-success">This owner&apos;s identity is verified{detail.verifiedAt ? ` (${fmtDate(detail.verifiedAt)})` : ''}.</span>
                     : 'Not yet verified. Review the documents, then flip “KYC verified” at the top.'}
                 </div>
                 <div className="flex justify-end">
@@ -453,7 +481,7 @@ function OwnerSheet({ ownerId, onClose, onChanged }: { ownerId: string | null; o
                   <Input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password (min 6 chars)" />
                 </Field>
                 <p className="text-xs text-muted-foreground">
-                  Immediately replaces the owner's password. Share the new password with them through a secure channel.
+                  Immediately replaces the owner&apos;s password. Share the new password with them through a secure channel.
                 </p>
                 <div className="flex justify-end">
                   <Button size="sm" onClick={savePassword} disabled={savingPassword || newPassword.length < 6}>
@@ -502,31 +530,40 @@ function UploadButton({ label, busy, onFile }: { label: string; busy: boolean; o
     <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted/50">
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
       {busy ? 'Uploading…' : label}
-      <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
+      <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
     </label>
   );
 }
 
 function DocImage({ label, url, busy, onFile, onClear }: { label: string; url: string | null; busy: boolean; onFile: (f: File) => void; onClear: () => void }) {
+  const pdf = isPdf(url);
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <label className="group relative flex aspect-[16/10] cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed bg-muted/30 hover:bg-muted/50">
-        {url ? (
+        {/* busy is tested before url so replacing a stored document still shows
+            the spinner rather than sitting on the old one with no feedback. */}
+        {busy ? (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        ) : pdf ? (
+          // A PDF has no thumbnail, and an <img> pointed at one renders as a
+          // broken image. Say what is attached and let "View full" open it.
+          <span className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground"><FileText className="h-5 w-5" /> PDF attached</span>
+        ) : url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt={`${label} document`} className="h-full w-full object-cover" />
-        ) : busy ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         ) : (
           <span className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground"><Upload className="h-4 w-4" /> Upload</span>
         )}
-        <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
+        <input type="file" accept={DOCUMENT_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
       </label>
-      {url && (
+      {url ? (
         <div className="flex items-center justify-between">
-          <a href={url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline">View full</a>
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline">{pdf ? 'Open PDF' : 'View full'}</a>
           <button type="button" onClick={onClear} className="text-[11px] text-destructive hover:underline">Remove</button>
         </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">Photo or PDF, up to {MAX_UPLOAD_LABEL}</p>
       )}
     </div>
   );

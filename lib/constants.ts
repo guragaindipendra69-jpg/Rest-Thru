@@ -296,8 +296,29 @@ export const STATUS_BADGE_VARIANTS: Record<string, keyof typeof ADMIN_TONE_CLASS
   'Non-Compliant': 'negative',
 };
 
+// ── The one staff login door ──
+//
+// Every restaurant role — owner, legacy STAFF, receptionist and waiter — signs in
+// at this single form. `login()` then routes them to their own portal by role, so
+// nobody has to know which URL belongs to their job. The four portals still have
+// four separate session cookies (see SESSION_PORTALS below); one shared *door* is
+// not one shared session.
+//
+// /superadmin/login stays its own door deliberately. `login()` enforces the
+// separation both ways — `adminConsole: true` refuses non-admins there and
+// `blockAdmin: true` refuses admins here — so a platform admin's password typed
+// into the staff form is rejected with the same generic message as a wrong one.
+export const SHARED_LOGIN_PATH = '/login';
+
 // Dashboard routes that render without the authenticated shell (sidebar/header) — the single
 // source of truth so proxy.ts and app/owner/layout.tsx can't drift out of sync.
+//
+// `/owner/login` is still listed even though the proxy now turns unauthenticated
+// requests away to SHARED_LOGIN_PATH directly: the page is a redirect stub for
+// links already bookmarked on station tablets, and it has to stay publicly
+// renderable for that forward to happen. Dropping it from here would bounce an
+// anonymous visitor to /login?redirect=/owner/login, which after a successful
+// sign-in would land them back on the stub.
 export const DASHBOARD_AUTH_ROUTES = [
   '/owner/login',
   '/owner/forgot-password',
@@ -309,9 +330,10 @@ export const DASHBOARD_AUTH_ROUTES = [
 // layout share one source of truth instead of an inline list.
 export const SUPERADMIN_AUTH_ROUTES = ['/superadmin/login'] as const;
 
-// Waiter order-station routes that render without a session — the waiter login
-// page. Shared by proxy.ts (skip the auth redirect here so it can't loop) and
-// app/order/layout.tsx (skip the guard) so the two never drift.
+// Waiter order-station routes that render without a session — the retired waiter
+// login URL, now a redirect stub. Shared by proxy.ts (skip the auth redirect here
+// so the stub can't be bounced back to itself) and app/order/layout.tsx (skip the
+// guard) so the two never drift.
 export const ORDER_AUTH_ROUTES = ['/order/login'] as const;
 
 // Canonical landing route for each role. Legacy STAFF maps to the owner
@@ -329,6 +351,40 @@ export const ROLE_HOME: Record<string, string> = {
 
 export function homeForRole(role: string | null | undefined): string {
   return (role && ROLE_HOME[role]) || '/owner';
+}
+
+/**
+ * Where a just-signed-in user actually lands, given the `?redirect=` the proxy
+ * forwarded. Falls back to their own role home whenever the target isn't one
+ * they may have.
+ *
+ * The single shared login form now receives this parameter on behalf of all four
+ * portals, so it is attacker-supplied input reaching a navigation. Two things are
+ * checked:
+ *
+ *  - It must be a same-origin absolute path. `//evil.com` is a protocol-relative
+ *    URL that browsers treat as another origin, and a backslash is folded to `/`
+ *    by some parsers, so both are rejected along with anything not starting `/`.
+ *    Without this, /login?redirect=https://evil.com would be an open redirect off
+ *    a trusted domain — exactly the shape a phishing link wants.
+ *  - It must belong to the signing-in user's own portal. A waiter following a
+ *    stale /reception link would otherwise be sent somewhere `guardArea` bounces
+ *    them straight back out of, which reads as a broken login rather than a
+ *    blocked one. Paths outside all four portals fall back too, so a redirect
+ *    cannot be used to land a fresh session on an arbitrary public page.
+ */
+export function safeRedirectForRole(
+  role: string | null | undefined,
+  target: string | null | undefined
+): string {
+  const home = homeForRole(role);
+  if (!target || !target.startsWith('/') || target.startsWith('//') || target.includes('\\')) {
+    return home;
+  }
+  // Compare on the path alone: a ?query or #hash of its own must not shift which
+  // portal the target is judged to be in.
+  const path = target.split(/[?#]/)[0];
+  return portalForPath(path) === portalForRole(role) ? target : home;
 }
 
 // ── Session portals ──

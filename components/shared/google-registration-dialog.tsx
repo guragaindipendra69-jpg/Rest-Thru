@@ -82,6 +82,10 @@ interface GoogleUser {
   lastName: string;
   picture: string;
   hasRestaurant?: boolean;
+  // Signed proof from `googleLogin` that this account's Google credential was
+  // just verified. The follow-up actions take the account from this, not from
+  // `id`, so a client cannot nominate whose account it is finishing sign-up for.
+  ticket?: string;
   restaurant?: {
     id: string;
     name: string;
@@ -191,9 +195,13 @@ export function GoogleRegistrationDialog({ open, onOpenChange, user, alreadyRegi
   };
 
   const handleSubmit = async () => {
+    if (!user.ticket) {
+      toast.error('Your sign-in session expired. Please sign in with Google again.');
+      return;
+    }
     setIsLoading(true);
     try {
-      const result = await completeGoogleRegistration(user.id, {
+      const result = await completeGoogleRegistration(user.ticket, {
         phone: formData.step1.phone,
         restaurantName: formData.step2.restaurantName!,
         restaurantType: formData.step2.restaurantType || 'CASUAL_DINING',
@@ -320,9 +328,13 @@ export function GoogleRegistrationDialog({ open, onOpenChange, user, alreadyRegi
                 </Button>
                 <Button
                   onClick={async () => {
+                    if (!user.ticket) {
+                      toast.error('Your sign-in session expired. Please sign in with Google again.');
+                      return;
+                    }
                     setIsLoading(true);
                     try {
-                      const result = await sessionForExistingGoogleUser(user.id);
+                      const result = await sessionForExistingGoogleUser(user.ticket);
                       if (result.error) { toast.error(result.error); return; }
                       onOpenChange(false);
                       router.push('/owner');

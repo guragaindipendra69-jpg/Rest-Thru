@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { UtensilsCrossed, Menu, ArrowRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { LoginModal } from '@/components/shared/login-modal';
+import { SHARED_LOGIN_PATH } from '@/lib/constants';
 import { RegisterModal } from '@/components/shared/register-modal';
 
 /**
@@ -35,9 +35,9 @@ import { RegisterModal } from '@/components/shared/register-modal';
 const Navbar = ({ overlay = false }: { overlay?: boolean }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     // rAF-throttled + passive: the raw scroll handler fired a setState on every
@@ -60,7 +60,10 @@ const Navbar = ({ overlay = false }: { overlay?: boolean }) => {
   }, []);
 
   useEffect(() => {
-    const handleLogin = () => setLoginOpen(true);
+    // `open-login` predates the shared login page, when it opened a modal here.
+    // It now navigates, so any existing dispatcher keeps working and lands on the
+    // one door instead of a fifth copy of the form.
+    const handleLogin = () => router.push(SHARED_LOGIN_PATH);
     const handleRegister = () => setRegisterOpen(true);
     document.addEventListener('open-login', handleLogin);
     document.addEventListener('open-register', handleRegister);
@@ -68,7 +71,7 @@ const Navbar = ({ overlay = false }: { overlay?: boolean }) => {
       document.removeEventListener('open-login', handleLogin);
       document.removeEventListener('open-register', handleRegister);
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (mobileOpen) {
@@ -160,13 +163,12 @@ const Navbar = ({ overlay = false }: { overlay?: boolean }) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setLoginOpen(true)}
+              <Link
+                href={SHARED_LOGIN_PATH}
                 className="rounded-full px-4 py-2 text-[13px] font-medium text-foreground/70 transition-colors hover:bg-primary/5 hover:text-primary"
               >
                 Login
-              </button>
+              </Link>
               <button
                 type="button"
                 onClick={() => setRegisterOpen(true)}
@@ -227,13 +229,13 @@ const Navbar = ({ overlay = false }: { overlay?: boolean }) => {
                 ))}
               </div>
               <div className="mt-2 flex flex-col gap-2 border-t border-border/40 pt-2">
-                <button
-                  type="button"
-                  onClick={() => { setMobileOpen(false); setLoginOpen(true); }}
-                  className="w-full rounded-2xl border border-border px-4 py-3 text-[15px] font-medium transition-colors hover:bg-muted active:scale-[0.99]"
+                <Link
+                  href={SHARED_LOGIN_PATH}
+                  onClick={() => setMobileOpen(false)}
+                  className="w-full rounded-2xl border border-border px-4 py-3 text-center text-[15px] font-medium transition-colors hover:bg-muted active:scale-[0.99]"
                 >
                   Login
-                </button>
+                </Link>
                 <button
                   type="button"
                   onClick={() => { setMobileOpen(false); setRegisterOpen(true); }}
@@ -247,11 +249,13 @@ const Navbar = ({ overlay = false }: { overlay?: boolean }) => {
         )}
       </nav>
 
-      <LoginModal open={loginOpen} onOpenChange={setLoginOpen} />
       <RegisterModal
         open={registerOpen}
         onOpenChange={setRegisterOpen}
-        onSwitchToLogin={() => setLoginOpen(true)}
+        // "Already have an account? Sign in" navigates to the one shared login
+        // door. This used to open a LoginModal mounted here — a fifth copy of the
+        // sign-in form, which is exactly what consolidating the login door removed.
+        onSwitchToLogin={() => router.push(SHARED_LOGIN_PATH)}
       />
 
       {/* Flow spacer. The bar is fixed so it can sit transparently over the

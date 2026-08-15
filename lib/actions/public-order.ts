@@ -17,6 +17,38 @@ const MAX_NOTE_LENGTH = 500;
 const VALID_PAYMENT_METHODS = ["CASH", "ESEWA", "KHALTI", "FONEPAY"];
 
 /**
+ * Whether a request plausibly comes from the party sitting at the table right now.
+ *
+ * Two things can establish that, and the second is not a fallback — it is the
+ * common case. `createPublicOrder` rotates the token on every order, so the link
+ * a guest scanned is already stale by the time they ask for the bill. An open
+ * order on the table is therefore the stronger signal that someone is seated;
+ * a matching token covers the guest who has scanned but not yet ordered (asking
+ * for water before deciding).
+ *
+ * Both fail only when the link is stale *and* the table has been released, which
+ * is exactly a link kept from a previous visit: checkout clears `currentOrderId`
+ * and rotates `qrCode` in the same write (`releaseTableForOrder` in
+ * lib/actions/orders.ts). Deliberately weaker than the order gate — a stale link
+ * can still ring the bell for a table that a *different* party now occupies. That
+ * request at least names a table with real guests at it, and the cost of being
+ * stricter is telling a seated diner to rescan before they can ask for the bill.
+ */
+function hasLiveSitting(
+  table: { qrCode: string | null; currentOrderId: string | null },
+  token?: string
+): boolean {
+  // Tables with no token yet (rows predating QR rotation) stay open, matching
+  // the grandfather clause in createPublicOrder.
+  if (!table.qrCode) return true;
+  if (table.currentOrderId) return true;
+  return token === table.qrCode;
+}
+
+const EXPIRED_LINK_ERROR =
+  "This QR link has expired. Please rescan the QR code on your table.";
+
+/**
  * Creates a real order from the customer QR-ordering page. Mirrors `createOrder` in
  * `lib/actions/orders.ts` (same order/table shape, same tax calc, same friendly
  * sequential orderId) but has no session — restaurantId/tableId come from the URL
@@ -70,9 +102,7 @@ export async function createPublicOrder(data: {
     // Tables with no token yet (pre-existing rows) stay open so upgrading the
     // app doesn't break every printed QR overnight.
     if (table.qrCode && data.token !== table.qrCode) {
-      return {
-        error: "This QR link has expired. Please rescan the QR code on your table.",
-      };
+      return { error: EXPIRED_LINK_ERROR };
     }
 
     // Verify menu items against the menu and recompute prices server-side
@@ -270,6 +300,8 @@ export async function requestTableService(data: {
   restaurantId: string;
   tableId: string;
   kind: "WATER" | "WAITER";
+  /** Rotating per-table QR token (the `k` query param on the scanned link). */
+  token?: string;
 }) {
   try {
     if (!data.restaurantId || !data.tableId) {
@@ -289,6 +321,13 @@ export async function requestTableService(data: {
       where: { id: data.tableId, restaurantId: data.restaurantId },
     });
     if (!table) return { error: "Table not found for this restaurant" };
+
+    // A retired link must not be able to ring the staff bell. Without this, a
+    // link kept or forwarded from a past visit was an unauthenticated way to
+    // raise service alerts against a table indefinitely.
+    if (!hasLiveSitting(table, data.token)) {
+      return { error: EXPIRED_LINK_ERROR };
+    }
 
     const order = table.currentOrderId
       ? await prisma.order.findUnique({
@@ -320,6 +359,8 @@ export async function requestPublicBill(data: {
   tableId: string;
   paymentMethod: string;
   splitCount?: number;
+  /** Rotating per-table QR token (the `k` query param on the scanned link). */
+  token?: string;
 }) {
   try {
     if (!data.restaurantId || !data.tableId) {
@@ -336,6 +377,12 @@ export async function requestPublicBill(data: {
       where: { id: data.tableId, restaurantId: data.restaurantId },
     });
     if (!table) return { error: "Table not found for this restaurant" };
+
+    // Same gate as requestTableService: a link from a previous sitting must not
+    // be able to raise a bill request against whoever is at the table now.
+    if (!hasLiveSitting(table, data.token)) {
+      return { error: EXPIRED_LINK_ERROR };
+    }
 
     const method = VALID_PAYMENT_METHODS.includes(data.paymentMethod) ? data.paymentMethod : "CASH";
     const splitCount = data.splitCount && data.splitCount > 1 && data.splitCount <= 20 ? data.splitCount : undefined;

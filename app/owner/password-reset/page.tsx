@@ -1,14 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { changePassword, getCurrentUser } from "@/lib/actions/auth";
+import { changePassword } from "@/lib/actions/auth";
 
+/**
+ * Change your own password.
+ *
+ * The account is not named here. `changePassword` reads the session cookie and
+ * changes that user's password, so this page has nothing to look up and no way to
+ * point at someone else's account. It used to fetch its own username with
+ * getCurrentUser() and pass it along, which the action then trusted.
+ */
 export default function PasswordResetPage() {
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -18,13 +26,6 @@ export default function PasswordResetPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState("");
-
-  useEffect(() => {
-    getCurrentUser().then((u) => {
-      if (u) setUsername(u.username || "");
-    });
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,10 +41,10 @@ export default function PasswordResetPage() {
     }
 
     setLoading(true);
-    const result = await changePassword(username, currentPassword, newPassword);
+    const result = await changePassword(currentPassword, newPassword);
     setLoading(false);
 
-    if (result?.error) {
+    if ("error" in result && result.error) {
       setError(result.error);
     } else {
       setSuccess(true);

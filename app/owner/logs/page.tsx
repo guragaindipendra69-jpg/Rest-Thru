@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -358,9 +358,8 @@ export default function LogsPage() {
                     const hasChanges = isChanged(log.changesBefore) || isChanged(log.changesAfter);
                     const isExpanded = expandedRow === log.id;
                     return (
-                      <>
+                      <Fragment key={log.id}>
                         <TableRow
-                          key={log.id}
                           className={cn(
                             'group cursor-pointer transition-colors',
                             isExpanded && 'bg-muted/40'
@@ -419,7 +418,7 @@ export default function LogsPage() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </TableBody>

@@ -149,7 +149,10 @@ export default function ActiveOrdersView() {
         const isBusy = busyOrderId === order.id;
         const canCancel = order.status === 'PENDING' || order.status === 'PREPARING';
         const canServe = order.status === 'READY';
-        const canPay = order.status === 'READY' || order.status === 'SERVED';
+        // A quick-billed counter sale can sit at READY/SERVED with a bill already
+        // on it — never offer to collect payment twice for the same bill.
+        const alreadyBilled = (order.bills?.length ?? 0) > 0;
+        const canPay = (order.status === 'READY' || order.status === 'SERVED') && !alreadyBilled;
 
         return (
           <div
@@ -172,7 +175,7 @@ export default function ActiveOrdersView() {
               </div>
               <Badge variant="outline" className={cn('gap-1 font-semibold', style.className)}>
                 <StatusIcon size={12} />
-                {style.label}
+                {alreadyBilled ? 'Billed — Paid' : style.label}
               </Badge>
             </div>
 

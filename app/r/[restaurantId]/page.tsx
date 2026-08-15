@@ -1,5 +1,6 @@
 import { getBookMenuData } from '@/lib/actions/public-menu';
 import { MenuBook } from '@/components/menu-book/MenuBook';
+import Link from 'next/link';
 
 // Always render fresh so an owner's settings change (hours, phone, website,
 // email) shows on the menu book immediately, with no stale full-route cache.
@@ -24,12 +25,12 @@ export default async function RestaurantMenuPage({ params }: { params: Promise<{
           >
             Try Again
           </a>
-          <a
+          <Link
             href="/"
             className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
           >
             Back to Home
-          </a>
+          </Link>
         </div>
       </div>
     );

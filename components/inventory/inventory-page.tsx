@@ -22,6 +22,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 import { AddInventoryDialog } from './AddInventoryDialog';
 import { EditableStockCell } from './EditableStockCell';
+import { EditInventoryDialog } from './EditInventoryDialog';
 import { StockHistoryDialog } from './StockHistoryDialog';
 import { getItemStatus, statusColors, type InventoryItem } from './inventory-shared';
 
@@ -93,6 +94,12 @@ export default function InventoryPageBody() {
         ? { ...i, currentStock: newStock, status: getItemStatus(newStock, i.minThreshold), lastUpdated: new Date() }
         : i
     ));
+
+  const applyEdit = (updated: InventoryItem) =>
+    setInventoryItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+
+  const removeItem = (id: string) =>
+    setInventoryItems((prev) => prev.filter((i) => i.id !== id));
 
   const emptyMessage = searchQuery
     ? 'No items match your search'
@@ -244,6 +251,13 @@ export default function InventoryPageBody() {
                         }
                       />
                     </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <EditInventoryDialog
+                        item={item}
+                        onUpdated={applyEdit}
+                        onDeleted={removeItem}
+                      />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -282,7 +296,14 @@ export default function InventoryPageBody() {
                           {formatRelativeTime(item.lastUpdated)}
                         </TableCell>
                         <TableCell>
-                          <StockHistoryDialog item={item} onStockChanged={applyStock} />
+                          <div className="flex items-center gap-2">
+                            <EditInventoryDialog
+                              item={item}
+                              onUpdated={applyEdit}
+                              onDeleted={removeItem}
+                            />
+                            <StockHistoryDialog item={item} onStockChanged={applyStock} />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

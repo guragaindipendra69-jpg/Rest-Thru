@@ -39,7 +39,12 @@ export async function getPublicMenuData(restaurantId: string) {
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
-        emoji: c.imageUrl || "📂",
+        imageUrl: c.imageUrl || null,
+        // Kept for callers that render a glyph when no photo was uploaded. It
+        // used to carry `imageUrl` itself, so an uploaded category photo was
+        // handed over as if it were an emoji and rendered as a literal
+        // "/uploads/categories/....jpg" string.
+        emoji: "📂",
       })),
       items: items.map((i) => ({
         id: i.id,
@@ -146,6 +151,7 @@ export async function getBookMenuData(restaurantId: string) {
       id: string;
       name: string;
       slug: string;
+      imageUrl: string | null;
       items: {
         id: string;
         name: string;
@@ -158,6 +164,16 @@ export async function getBookMenuData(restaurantId: string) {
         featured: boolean;
       }[];
     }>();
+
+    // Sections are keyed by normalized name, which may come from an item's
+    // `menuSection` rather than from a Category row, so the category photo is
+    // matched back by that same normalized name. A section with no matching
+    // category (or a category with no upload) simply gets no photo.
+    const sectionImage = new Map<string, string>();
+    for (const c of categoryRecords) {
+      const key = normalizeMenuSection(c.name);
+      if (c.imageUrl && !sectionImage.has(key)) sectionImage.set(key, c.imageUrl);
+    }
 
     const drinks: Array<{ id: string; name: string; description?: string; price: number; group: "wine" | "cocktail"; featured: boolean; imageUrl?: string | null }> = [];
 
@@ -193,6 +209,7 @@ export async function getBookMenuData(restaurantId: string) {
           id: sectionName,
           name: sectionName,
           slug: slugify(sectionName),
+          imageUrl: sectionImage.get(sectionName) ?? null,
           items: [],
         });
       }
@@ -218,6 +235,7 @@ export async function getBookMenuData(restaurantId: string) {
         id: string;
         name: string;
         slug: string;
+        imageUrl: string | null;
         items: {
           id: string;
           name: string;

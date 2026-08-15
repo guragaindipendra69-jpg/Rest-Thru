@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 import {
@@ -13,7 +13,6 @@ import {
   Trophy,
   Award,
   Sparkles,
-  Upload,
   Loader2,
   ImageIcon,
   Pencil,
@@ -53,7 +52,7 @@ import {
   deleteCategory,
   getCategoryOverview,
 } from "@/lib/actions/menu";
-import { uploadImage } from "@/lib/upload";
+import { UploadField } from "@/components/shared/upload-field";
 import { cn } from "@/lib/utils";
 
 type CategoryRow = {
@@ -91,10 +90,8 @@ export default function CategoryPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [name, setName] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<CategoryRow | null>(null);
@@ -125,27 +122,15 @@ export default function CategoryPage() {
   const openAdd = () => {
     setEditing(null);
     setName("");
-    setImageFile(null);
-    setImagePreview(null);
+    setImageUrl(null);
     setDialogOpen(true);
   };
 
   const openEdit = (cat: CategoryRow) => {
     setEditing(cat);
     setName(cat.name);
-    setImageFile(null);
-    setImagePreview(cat.imageUrl);
+    setImageUrl(cat.imageUrl);
     setDialogOpen(true);
-  };
-
-  const onPickFile = (file: File | null) => {
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be under 2 MB");
-      return;
-    }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
   };
 
   const handleSave = async () => {
@@ -156,17 +141,9 @@ export default function CategoryPage() {
     }
     setSaving(true);
     try {
-      let imageUrl: string | undefined;
-      if (imageFile) {
-        const url = await uploadImage(imageFile, "categories");
-        if (!url) {
-          toast.error("Image upload failed");
-          setSaving(false);
-          return;
-        }
-        imageUrl = url;
-      }
-
+      // `imageUrl` is already stored — UploadField uploads on pick. Passing it
+      // on every save (not only when a new file was chosen) is what lets the
+      // Remove button clear the picture: the action reads null as "clear it".
       const res = editing
         ? await updateCategory(editing.id, { name: name.trim(), imageUrl })
         : await addCategory({ name: name.trim(), imageUrl, restaurantId });
@@ -354,28 +331,17 @@ export default function CategoryPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Image</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+              <UploadField
+                value={imageUrl}
+                onChange={setImageUrl}
+                folder="categories"
+                shape="wide"
+                disabled={saving}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full h-32 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors overflow-hidden"
-              >
-                {imagePreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-                ) : (
-                  <>
-                    <Upload className="h-6 w-6" />
-                    <span className="text-xs">Upload image (max 2 MB)</span>
-                  </>
-                )}
-              </button>
+              <p className="text-xs text-muted-foreground">
+                Shown as the category tile here and on the guest menu. A square
+                image crops best.
+              </p>
             </div>
           </div>
           <DialogFooter>

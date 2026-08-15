@@ -181,7 +181,7 @@ export default function AdminSettings() {
                     </Button>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Admin invite flow isn't wired up yet — coming soon.</TooltipContent>
+                <TooltipContent>Admin invite flow isn&apos;t wired up yet — coming soon.</TooltipContent>
               </Tooltip>
             </div>
           </CardHeader>
@@ -234,7 +234,7 @@ export default function AdminSettings() {
                     <Switch checked={false} disabled />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Two-factor authentication for admin accounts isn't implemented yet — this toggle is disabled rather than claiming a security control that doesn't exist.</TooltipContent>
+                <TooltipContent>Two-factor authentication for admin accounts isn&apos;t implemented yet — this toggle is disabled rather than claiming a security control that doesn&apos;t exist.</TooltipContent>
               </Tooltip>
             </div>
             <div className="border-t border-border pt-5">
@@ -397,7 +397,7 @@ export default function AdminSettings() {
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>Backup tooling isn't wired to a storage backend yet — coming soon.</TooltipContent>
+                  <TooltipContent>Backup tooling isn&apos;t wired to a storage backend yet — coming soon.</TooltipContent>
                 </Tooltip>
               </div>
               <div className="p-4 rounded-lg bg-muted/50 border border-border flex items-end">
@@ -409,7 +409,7 @@ export default function AdminSettings() {
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>Restore tooling isn't wired to a storage backend yet — coming soon.</TooltipContent>
+                  <TooltipContent>Restore tooling isn&apos;t wired to a storage backend yet — coming soon.</TooltipContent>
                 </Tooltip>
               </div>
             </div>

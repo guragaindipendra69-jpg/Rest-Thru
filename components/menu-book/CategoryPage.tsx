@@ -6,6 +6,7 @@ import { DishRow } from "./DishRow";
 export function CategoryPage({
   title,
   kicker,
+  imageUrl,
   items,
   pageNumber,
   activeFilter,
@@ -14,6 +15,7 @@ export function CategoryPage({
 }: {
   title: string;
   kicker?: string;
+  imageUrl?: string | null;
   items: MenuItemData[];
   pageNumber?: number;
   activeFilter: string;
@@ -27,7 +29,7 @@ export function CategoryPage({
 
   return (
     <MenuPage pageNumber={pageNumber} tint={tint} flow={flow}>
-      <SectionHeader title={title} kicker={kicker} />
+      <SectionHeader title={title} kicker={kicker} imageUrl={imageUrl} />
 
       <div className="mt-2 space-y-1">
         {items.map((item) => (

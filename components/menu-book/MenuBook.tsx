@@ -45,6 +45,8 @@ export function MenuBook({ data }: { data: MenuData }) {
             chunks.push({
               id: pages > 1 ? `${slug}-${p + 1}` : slug,
               title: c.name,
+              // Repeated on every page of a long section, same as the title.
+              imageUrl: c.imageUrl ?? null,
               items: c.items.slice(p * ITEMS_PER_PAGE, (p + 1) * ITEMS_PER_PAGE),
               tint: (i + p) % 2 === 1,
             });
@@ -97,6 +99,7 @@ export function MenuBook({ data }: { data: MenuData }) {
       <CategoryPage
         title={section.title}
         kicker={section.kicker}
+        imageUrl={section.imageUrl}
         items={section.items}
         pageNumber={i + 1}
         activeFilter="all"

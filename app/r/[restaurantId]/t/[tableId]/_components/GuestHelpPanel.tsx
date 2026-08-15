@@ -38,6 +38,7 @@ type ServiceKind = 'WATER' | 'WAITER';
 export default function GuestHelpPanel({
   restaurantId,
   tableId,
+  token,
   onRequestBill,
   viewMode = 'list',
   onViewModeChange,
@@ -48,6 +49,9 @@ export default function GuestHelpPanel({
 }: {
   restaurantId: string;
   tableId: string;
+  /** Rotating QR token from the scanned link, forwarded so the server can
+   *  refuse service calls from a link kept after a previous sitting. */
+  token?: string;
   onRequestBill?: () => void;
   viewMode?: 'list' | 'grid';
   onViewModeChange?: (mode: 'list' | 'grid') => void;
@@ -65,7 +69,7 @@ export default function GuestHelpPanel({
   const sendRequest = async (kind: ServiceKind) => {
     if (pending) return;
     setPending(kind);
-    const res = await requestTableService({ restaurantId, tableId, kind });
+    const res = await requestTableService({ restaurantId, tableId, kind, token });
     setPending(null);
 
     if ('error' in res && res.error) {

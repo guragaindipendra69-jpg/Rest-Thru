@@ -53,6 +53,30 @@ const neg = calculateBill({
 });
 check("clamped discount total >= 0", neg.grandTotal >= 0, true);
 
+// Regression guard for the discount recalculation paths (applyDiscountToBill and
+// applyCouponToBill in lib/actions/bills.ts, and the reception checkout preview).
+// All three used to recompute the total by hand as `subtotal + serviceCharge -
+// discount`, which is the gross only in INCLUSIVE mode. The pair below pins the
+// difference: same lines, same discount, one mode each. If a caller ever goes
+// back to hand-rolled arithmetic, the ADDITIVE figure is what it gets wrong.
+const naive = 1000 + 100 - 50; // subtotal + serviceCharge - discount
+const dLines = [
+  { description: "Food", quantity: 1, unitPrice: 1000 },
+  { description: "Service Charge", quantity: 1, unitPrice: 100 },
+];
+const dAdd = calculateBill({
+  lines: dLines, config: cfg, pricingMode: "ADDITIVE",
+  registrationType: "VAT", discountAmount: 50,
+});
+const dInc = calculateBill({
+  lines: dLines, config: cfg, pricingMode: "INCLUSIVE",
+  registrationType: "VAT", discountAmount: 50,
+});
+check("discounted INCLUSIVE total is the gross", dInc.grandTotal, naive);
+check("discounted ADDITIVE stacks VAT on top", dAdd.grandTotal, 1186.5);
+check("naive formula understates ADDITIVE by the VAT", dAdd.grandTotal > naive, true);
+check("discounted ADDITIVE taxable is pre-VAT base", dAdd.taxableValue, naive);
+
 // Schedule 1 exempt line excluded from taxable base
 const ex = calculateBill({
   lines: [

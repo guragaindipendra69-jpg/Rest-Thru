@@ -8,6 +8,7 @@ import { useWaiterOrderStore } from '@/store/waiter-order-store';
 import { useOrderSync } from '@/hooks/useOrderSync';
 import { NotificationSound } from '@/components/shared/notification-sound';
 import { logout } from '@/lib/actions/auth';
+import { SHARED_LOGIN_PATH } from '@/lib/constants';
 import type { PosView } from './OrderPageClient';
 
 export interface PosCategory {
@@ -20,11 +21,13 @@ export default function OrderHeader({
   view,
   onViewChange,
   waiterName,
+  userRole,
 }: {
   categories: PosCategory[];
   view: PosView;
   onViewChange: (view: PosView) => void;
   waiterName: string;
+  userRole?: string | null;
 }) {
   // Initialize sync and offline listeners
   useOrderSync();
@@ -50,7 +53,7 @@ export default function OrderHeader({
     }
     await logout();
     // Full navigation so no in-memory store state carries into the next session.
-    window.location.assign('/order/login');
+    window.location.assign(SHARED_LOGIN_PATH);
   };
 
   return (
@@ -66,21 +69,24 @@ export default function OrderHeader({
       )}
 
       {/* Waiter identity + sign-out. Thin strip so it's clear who's signed in on
-          a shared station and easy to hand off between waiters. */}
-      <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-1.5">
-        <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <UserRound size={13} className="flex-shrink-0" />
-          <span className="truncate">{waiterName}</span>
-        </span>
-        <button
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:text-destructive disabled:opacity-60"
-        >
-          {loggingOut ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
-          <span>{loggingOut ? 'Signing out…' : 'Sign out'}</span>
-        </button>
-      </div>
+          a shared station and easy to hand off between waiters. Only shown to
+          the WAITER role — owner/staff/reception see no identity strip here. */}
+      {userRole === 'WAITER' && (
+        <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-1.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <UserRound size={13} className="flex-shrink-0" />
+            <span className="truncate">{waiterName}</span>
+          </span>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:text-destructive disabled:opacity-60"
+          >
+            {loggingOut ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
+            <span>{loggingOut ? 'Signing out…' : 'Sign out'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Top Bar: Table Info, View Toggle & Live Status */}
       <div className="flex items-center justify-between px-4 py-3">

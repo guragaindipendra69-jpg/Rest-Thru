@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getMenuItems, getCategories } from '@/lib/actions/menu';
 import { getTables } from '@/lib/actions/tables';
+import { SHARED_LOGIN_PATH } from '@/lib/constants';
 import { MenuItem } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 export default async function OrderPage() {
   const session = await getSession();
   if (!session || !session.restaurantId) {
-    redirect('/order/login');
+    redirect(SHARED_LOGIN_PATH);
   }
 
   const waiterName = [session.firstName, session.lastName].filter(Boolean).join(' ').trim()
@@ -47,6 +48,7 @@ export default async function OrderPage() {
       categories={categories}
       tables={tables}
       waiterName={waiterName}
+      userRole={session.role}
     />
   );
 }

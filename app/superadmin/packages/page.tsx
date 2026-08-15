@@ -157,7 +157,7 @@ export default function PackagesPage() {
             </div>
           ) : plans.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              No packages yet. Click "Add Package" to create one.
+              No packages yet. Click &quot;Add Package&quot; to create one.
             </div>
           ) : (
             <Table>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { ClipboardList, Loader2, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -85,6 +85,8 @@ export default function LiveOrdersPage() {
   const [voidItemTarget, setVoidItemTarget] = useState<any>(null);
   const [voidOrderTarget, setVoidOrderTarget] = useState<any>(null);
   const [voidReason, setVoidReason] = useState("");
+  // How many units of a multi-quantity line to cancel (defaults to the whole line).
+  const [voidQuantity, setVoidQuantity] = useState(1);
   const [voidBusy, setVoidBusy] = useState(false);
   const [billReceipt, setBillReceipt] = useState<{
     open: boolean;
@@ -592,10 +594,15 @@ export default function LiveOrdersPage() {
   }) => {
     const result = await voidOrderItem({
       orderItemId: voidItemTarget.id,
+      quantity: voidQuantity,
       ...data,
     });
     if (result.error) return { error: result.error };
-    toast.success(`${voidItemTarget.menuItemName} voided`);
+    toast.success(
+      voidQuantity >= voidItemTarget.quantity
+        ? `${voidItemTarget.menuItemName} voided`
+        : `${voidQuantity}x of ${voidItemTarget.menuItemName} cancelled`
+    );
     setSelectedOrder(result.data);
     setVoidItemTarget(null);
     refresh();
@@ -618,12 +625,14 @@ export default function LiveOrdersPage() {
     setVoidItemTarget(null);
     setVoidOrderTarget(null);
     setVoidReason("");
+    setVoidQuantity(1);
   };
 
   const confirmSelfVoidItem = async () => {
     setVoidBusy(true);
     const result = await voidOrderItem({
       orderItemId: voidItemTarget.id,
+      quantity: voidQuantity,
       reason: voidReason.trim(),
     });
     setVoidBusy(false);
@@ -631,7 +640,11 @@ export default function LiveOrdersPage() {
       toast.error(result.error);
       return;
     }
-    toast.success(`${voidItemTarget.menuItemName} voided`);
+    toast.success(
+      voidQuantity >= voidItemTarget.quantity
+        ? `${voidItemTarget.menuItemName} voided`
+        : `${voidQuantity}x of ${voidItemTarget.menuItemName} cancelled`
+    );
     setSelectedOrder(result.data);
     closeVoidDialogs();
     refresh();
@@ -798,6 +811,7 @@ export default function LiveOrdersPage() {
         groupTotal={groupTotal}
         onVoidItem={(item) => {
           setVoidReason("");
+          setVoidQuantity(item.quantity);
           setVoidItemTarget(item);
         }}
         onVoidOrder={(order) => {
@@ -848,6 +862,38 @@ export default function LiveOrdersPage() {
                   This is recorded against your login and cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {voidItemTarget && voidItemTarget.quantity > 1 && (
+                <div className="flex items-center justify-between rounded-xl border border-border-control bg-background px-3 py-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Cancel how many?
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVoidQuantity((q) => Math.max(1, q - 1))}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border-control text-foreground transition-colors hover:bg-muted"
+                      aria-label="Cancel fewer"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span className="w-14 text-center text-sm font-bold tabular-nums">
+                      {voidQuantity} / {voidItemTarget.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVoidQuantity((q) =>
+                          Math.min(voidItemTarget.quantity, q + 1)
+                        )
+                      }
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border-control text-foreground transition-colors hover:bg-muted"
+                      aria-label="Cancel more"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
               <textarea
                 className="min-h-20 w-full rounded-xl border border-border-control bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 placeholder="Reason for voiding..."
@@ -925,7 +971,40 @@ export default function LiveOrdersPage() {
             title={`Void ${voidItemTarget?.menuItemName ?? "item"}`}
             description="Voiding an item requires a manager, owner, or admin to authorize with their own login."
             onConfirm={handleApprovedVoidItem}
-          />
+          >
+            {voidItemTarget && voidItemTarget.quantity > 1 && (
+              <div className="flex items-center justify-between rounded-xl border border-border-control bg-background px-3 py-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Cancel how many?
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVoidQuantity((q) => Math.max(1, q - 1))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border-control text-foreground transition-colors hover:bg-muted"
+                    aria-label="Cancel fewer"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="w-14 text-center text-sm font-bold tabular-nums">
+                    {voidQuantity} / {voidItemTarget.quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVoidQuantity((q) =>
+                        Math.min(voidItemTarget.quantity, q + 1)
+                      )
+                    }
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border-control text-foreground transition-colors hover:bg-muted"
+                    aria-label="Cancel more"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </ManagerApprovalDialog>
           <ManagerApprovalDialog
             open={!!voidOrderTarget}
             onOpenChange={(o) => !o && setVoidOrderTarget(null)}

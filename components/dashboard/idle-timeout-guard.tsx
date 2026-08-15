@@ -88,12 +88,12 @@ export default function IdleTimeoutGuard() {
             Still there?
           </DialogTitle>
           <DialogDescription>
-            You'll be signed out in {secondsLeft}s for inactivity to keep this terminal secure.
+            You&apos;ll be signed out in {secondsLeft}s for inactivity to keep this terminal secure.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => logout()}>Sign out now</Button>
-          <Button onClick={stayLoggedIn}>I'm still here</Button>
+          <Button onClick={stayLoggedIn}>I&apos;m still here</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

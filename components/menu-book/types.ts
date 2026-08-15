@@ -26,6 +26,9 @@ export interface SectionData {
   id: string;
   title: string;
   kicker?: string;
+  // The owner-uploaded category photo, when the section maps to a category that
+  // has one. Null for sections built purely from an item's `menuSection`.
+  imageUrl?: string | null;
   items: MenuItemData[];
   tint?: boolean;
 }
@@ -45,6 +48,7 @@ export interface MenuData {
     id: string;
     name: string;
     slug: string;
+    imageUrl?: string | null;
     items: MenuItemData[];
   }[];
   drinks: DrinkItemData[];

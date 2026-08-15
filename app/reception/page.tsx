@@ -535,7 +535,7 @@ export default function ReceptionPage() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Cancel Reservation</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        Are you sure you want to cancel {res.customerName}'s reservation?
+                                        Are you sure you want to cancel {res.customerName}&apos;s reservation?
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>

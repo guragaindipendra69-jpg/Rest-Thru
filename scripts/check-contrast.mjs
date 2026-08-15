@@ -145,6 +145,9 @@ const PAIRS = [
   ['success-strong', 'success-surface', 4.5, 'success chip'],
   ['warning-strong', 'warning-surface', 4.5, 'warning chip'],
   ['destructive-strong', 'destructive-surface', 4.5, 'destructive chip'],
+  // Body copy inside a tinted panel, not just the heading ink: the settings
+  // danger zone spells out what a delete erases on --destructive-surface.
+  ['foreground', 'destructive-surface', 4.5, 'danger zone warning body'],
   ['info-strong', 'info-surface', 4.5, 'info chip'],
   ['error-strong', 'error-surface', 4.5, 'error chip'],
   ['brand-strong', 'brand-light', 4.5, 'brand chip'],

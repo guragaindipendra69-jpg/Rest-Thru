@@ -192,7 +192,7 @@ export function RestaurantControls({
           <div className="flex items-center justify-between border-t border-border pt-4">
             <div>
               <p className="text-sm font-medium text-foreground">GST / Tax on bills</p>
-              <p className="text-xs text-muted-foreground">Apply GST to this restaurant's bills.</p>
+              <p className="text-xs text-muted-foreground">Apply GST to this restaurant&apos;s bills.</p>
             </div>
             <Switch
               checked={features.enableGST}

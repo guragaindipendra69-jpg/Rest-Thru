@@ -89,7 +89,7 @@ export default function RegisterPage() {
   const [usePersonalPhone, setUsePersonalPhone] = useState(false);
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [desiredPlanId, setDesiredPlanId] = useState<string | null>(null);
-  const [googleUser, setGoogleUser] = useState<{ id: string; email: string; firstName: string; lastName: string; picture: string; alreadyRegistered?: boolean } | null>(null);
+  const [googleUser, setGoogleUser] = useState<{ id: string; email: string; firstName: string; lastName: string; picture: string; alreadyRegistered?: boolean; ticket?: string } | null>(null);
 
   useEffect(() => {
     getPublicPlans().then(setPlans);

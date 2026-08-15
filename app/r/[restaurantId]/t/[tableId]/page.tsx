@@ -45,6 +45,7 @@ import GuestHelpPanel from './_components/GuestHelpPanel';
 interface CategoryTab {
   id: string;
   name: string;
+  imageUrl?: string | null;
 }
 
 const getSpiceEmojis = (level: SpiceLevel): string => {
@@ -78,8 +79,27 @@ export default function CustomerMenuPage() {
   const [menuError, setMenuError] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   // Guests can switch how dishes are laid out from the floating "View Style"
-  // action: a single-column list (default) or a two-up grid.
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  // action: a two-up grid (default) or a single-column list. The choice is
+  // remembered on the device so it survives a page refresh.
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('guest-view-mode');
+      if (saved === 'list' || saved === 'grid') setViewMode(saved);
+    } catch {
+      // localStorage may be unavailable (private mode) — keep grid.
+    }
+  }, []);
+
+  const changeViewMode = (mode: 'list' | 'grid') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('guest-view-mode', mode);
+    } catch {
+      // Persistence is a nicety, not a requirement.
+    }
+  };
   // Human-readable table label. The URL carries the cuid, so the number has to
   // be looked up rather than parsed out of the path.
   const [tableLabel, setTableLabel] = useState<string>('');
@@ -115,7 +135,7 @@ export default function CustomerMenuPage() {
     const data = await getPublicMenuData(restaurantId);
     if (data.restaurant) {
       setRestaurant({ name: data.restaurant.name, tagline: data.restaurant.address });
-      setCategories(data.categories.map((c) => ({ id: c.id, name: c.name })));
+      setCategories(data.categories.map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl })));
       setMenuItems(data.items.map((item) => ({
         id: item.id,
         restaurantId,
@@ -237,6 +257,9 @@ export default function CustomerMenuPage() {
         tableId,
         paymentMethod,
         splitCount: splitBillCount > 1 ? splitBillCount : undefined,
+        // Same scanned-link token the order path sends: the server refuses a
+        // bill request from a link left over from a previous sitting.
+        token: qrToken,
       });
       if (result.error) {
         toast.error(result.error);
@@ -338,16 +361,35 @@ export default function CustomerMenuPage() {
             >
               All
             </button>
+            {/*
+              A category that has a photo uploaded in Menu > Category wears it
+              as a leading thumbnail; the ones without stay plain text pills, so
+              a half-illustrated menu still reads as one row rather than as two
+              competing styles. The pill keeps its own left padding tight when
+              an image is present so the thumbnail sits flush.
+            */}
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                  cat.imageUrl ? 'py-1 pl-1 pr-3' : 'px-3 py-1.5'
+                } ${
                   selectedCategory === cat.id
                     ? 'bg-primary text-white'
                     : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
+                {cat.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={cat.imageUrl}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    className="h-7 w-7 flex-shrink-0 rounded-full object-cover ring-1 ring-black/5"
+                  />
+                )}
                 {cat.name}
               </button>
             ))}
@@ -707,9 +749,10 @@ export default function CustomerMenuPage() {
       <GuestHelpPanel
         restaurantId={restaurantId}
         tableId={tableId}
+        token={qrToken}
         onRequestBill={() => setBillDialogOpen(true)}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={changeViewMode}
         categories={categories}
         subMenus={Array.from(
           new Set(menuItems.map((i: any) => i.menuSection).filter(Boolean))

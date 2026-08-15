@@ -23,7 +23,7 @@ export async function addCategory(data: {
   name: string;
   nameNp?: string;
   emoji?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
   sortOrder?: number;
   active?: boolean;
   restaurantId?: string;
@@ -59,7 +59,7 @@ export async function updateCategory(
     name: string;
     nameNp?: string;
     emoji?: string;
-    imageUrl?: string;
+    imageUrl?: string | null;
     sortOrder?: number;
     active?: boolean;
   }
@@ -72,14 +72,37 @@ export async function updateCategory(
   if (!name) return { error: "Category name is required" };
 
   try {
-    // COALESCE keeps the existing image when the caller doesn't supply a new one.
-    // The restaurant_id predicate is what makes a foreign id a no-op.
-    const rows = await prisma.$executeRaw`
-      UPDATE categories
-      SET name = ${name}, display_order = ${data.sortOrder || 0}, is_active = ${data.active ?? true},
-          image_url = COALESCE(${data.imageUrl ?? null}, image_url)
-      WHERE id = ${id} AND restaurant_id = ${session.restaurantId}
-    `;
+    // Three distinct cases for the image, which is why this is not one
+    // COALESCE any more:
+    //   key absent  -> leave the stored image alone (other callers only rename)
+    //   string      -> replace it
+    //   null        -> clear it (the Remove button in the category dialog)
+    // COALESCE alone folded null into "leave alone", so removing a category
+    // picture was impossible.
+    //
+    // display_order and is_active COALESCE for the opposite reason: they used
+    // to read `data.sortOrder || 0` and `data.active ?? true`, so saving a
+    // rename from the Category page (which sends neither) silently reset the
+    // category's position to 0 and switched a hidden category back on.
+    const touchesImage = "imageUrl" in data;
+    const sortOrder = data.sortOrder ?? null;
+    const active = data.active ?? null;
+    const rows = touchesImage
+      ? await prisma.$executeRaw`
+          UPDATE categories
+          SET name = ${name},
+              display_order = COALESCE(${sortOrder}::int, display_order),
+              is_active = COALESCE(${active}::boolean, is_active),
+              image_url = ${data.imageUrl ?? null}
+          WHERE id = ${id} AND restaurant_id = ${session.restaurantId}
+        `
+      : await prisma.$executeRaw`
+          UPDATE categories
+          SET name = ${name},
+              display_order = COALESCE(${sortOrder}::int, display_order),
+              is_active = COALESCE(${active}::boolean, is_active)
+          WHERE id = ${id} AND restaurant_id = ${session.restaurantId}
+        `;
     if (rows === 0) return { error: "Category not found" };
     await logActivity(session, {
       actionType: "CATEGORY_UPDATE",
@@ -122,7 +145,16 @@ export async function deleteCategory(id: string) {
     });
     return { success: true };
   } catch (err: any) {
-    return { error: err?.message || "Database error" };
+    // Keep the guest-facing message human — a category pinned by old orders or
+    // combos fails with a raw FK error otherwise.
+    if (/23001|foreign key|restrict/i.test(err?.message ?? "")) {
+      return {
+        error:
+          "This category is still used by your past bills, so it cannot be deleted. " +
+          "You can deactivate it instead.",
+      };
+    }
+    return { error: "Something went wrong while deleting this category. Please try again." };
   }
 }
 
@@ -365,7 +397,16 @@ export async function deleteMenuItem(id: string) {
     });
     return { success: true };
   } catch (err: any) {
-    return { error: err?.message || "Failed to delete menu item" };
+    // The database refuses to delete a dish that past orders reference, so the
+    // guest doesn't get a raw SQL dump — explain what happened instead.
+    if (err?.code === "P2003" || /23001|foreign key|restrict/i.test(err?.message ?? "")) {
+      return {
+        error:
+          "This dish has been ordered before, so it cannot be deleted. " +
+          "Your past bills need it to stay in the system. You can mark it unavailable instead.",
+      };
+    }
+    return { error: "Something went wrong while deleting this item. Please try again." };
   }
 }
 

@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +9,28 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Upload } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { AlertTriangle, Loader2, Trash2, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
-import { uploadImage } from '@/lib/upload';
+import { uploadFile } from '@/lib/upload';
+import { IMAGE_ACCEPT, validateUpload } from '@/lib/upload-limits';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth-store';
 import {
-  getRestaurant, updateRestaurant, updateCoverPhoto, setUserPassword, saveOperatingHours,
+  getRestaurant, updateRestaurant, updateCoverPhoto, saveOperatingHours,
+  getRestaurantDeleteInfo, deleteMyRestaurant,
 } from '@/lib/actions/settings';
+// Password changes go through the auth action, which resolves the account from
+// the session cookie rather than an id sent by this page.
+import { changePassword } from '@/lib/actions/auth';
 
 interface RestaurantData {
   name: string;
@@ -40,6 +55,17 @@ const DEFAULT_HOURS = Object.fromEntries(
   DAYS.map((day) => [day, { open: '07:00', close: '22:00', enabled: true }])
 );
 
+// What the danger zone needs to decide whether it can offer the delete at all.
+// Null while loading, and stays null for anyone the action refuses (a legacy
+// STAFF login in this portal), which is what hides the card.
+interface DeleteInfo {
+  restaurantName: string;
+  billCount: number;
+  confirmationPhrase: string;
+}
+
+const normalizePhrase = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+
 /**
  * Settings index -- Restaurant Details, Operating Hours, and account security.
  *
@@ -54,7 +80,7 @@ const DEFAULT_HOURS = Object.fromEntries(
  * lives here.
  */
 export default function SettingsPage() {
-  const { restaurant: authRestaurant, user } = useAuthStore();
+  const { restaurant: authRestaurant } = useAuthStore();
   const restaurantId = authRestaurant?.id;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -62,8 +88,14 @@ export default function SettingsPage() {
   const [isSavingPwd, setIsSavingPwd] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
+
+  const [deleteInfo, setDeleteInfo] = useState<DeleteInfo | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [restaurant, setRestaurant] = useState<RestaurantData>({
     name: '',
@@ -86,7 +118,14 @@ export default function SettingsPage() {
 
     setIsLoading(true);
     try {
-      const restRes = await getRestaurant(restaurantId);
+      const [restRes, deleteRes] = await Promise.all([
+        getRestaurant(restaurantId),
+        getRestaurantDeleteInfo(),
+      ]);
+
+      // An error here just means this account may not delete the outlet, so the
+      // danger zone stays hidden rather than showing a disabled control.
+      setDeleteInfo('data' in deleteRes && deleteRes.data ? deleteRes.data : null);
 
       if (restRes.data) {
         const r = restRes.data as any;
@@ -158,9 +197,16 @@ export default function SettingsPage() {
     toast.success('Settings saved');
   };
 
-  const changePassword = async () => {
-    if (!newPwd) {
-      toast.error('Enter a new password');
+  // The action takes no user id: it changes the password of whoever the session
+  // cookie says is calling. These checks are for the fast error message only —
+  // length and the current password are enforced again server side.
+  const submitPasswordChange = async () => {
+    if (!currentPwd) {
+      toast.error('Enter your current password');
+      return;
+    }
+    if (newPwd.length < 6) {
+      toast.error('New password must be at least 6 characters');
       return;
     }
     if (newPwd !== confirmPwd) {
@@ -168,32 +214,59 @@ export default function SettingsPage() {
       return;
     }
     setIsSavingPwd(true);
-    const result = await setUserPassword(user?.id || '', newPwd);
+    const result = await changePassword(currentPwd, newPwd);
     setIsSavingPwd(false);
-    if (result.error) {
+    if ('error' in result && result.error) {
       toast.error(result.error);
       return;
     }
     toast.success('Password updated');
+    setCurrentPwd('');
     setNewPwd('');
     setConfirmPwd('');
   };
 
   const handleCoverUpload = async (file: File) => {
     setIsUploadingCover(true);
-    const url = await uploadImage(file, 'covers');
-    if (url) {
-      const result = await updateCoverPhoto(restaurantId!, url);
-      if (!result.error) {
-        setRestaurant((prev) => ({ ...prev, cover_url: url }));
-        toast.success('Cover uploaded');
-      } else {
-        toast.error('Cover upload failed');
-      }
+    // Reports why rather than a flat "Cover upload failed", and puts the stored
+    // cover back on screen if the new one did not land — the optimistic preview
+    // is set before the upload, so a rejected file used to stay visible as
+    // though it had saved.
+    const res = await uploadFile(file, 'covers', 'image');
+    if ('error' in res) {
+      toast.error(res.error);
+      setCoverPreview(restaurant.cover_url || null);
+      setIsUploadingCover(false);
+      return;
+    }
+    const result = await updateCoverPhoto(restaurantId!, res.url);
+    if (result.error) {
+      toast.error(result.error || 'Cover upload failed');
+      setCoverPreview(restaurant.cover_url || null);
     } else {
-      toast.error('Cover upload failed');
+      setRestaurant((prev) => ({ ...prev, cover_url: res.url }));
+      toast.success('Cover uploaded');
     }
     setIsUploadingCover(false);
+  };
+
+  const deletePhraseMatches =
+    !!deleteInfo && normalizePhrase(deleteConfirm) === deleteInfo.confirmationPhrase;
+
+  const handleDeleteRestaurant = async () => {
+    if (!deletePhraseMatches) return;
+    setIsDeleting(true);
+    const result = await deleteMyRestaurant(deleteConfirm);
+    if ('error' in result && result.error) {
+      setIsDeleting(false);
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Restaurant deleted');
+    // Full navigation rather than router.push: the session cookies are gone and
+    // the in-memory auth store still holds the deleted restaurant, so the app
+    // needs to boot from scratch (same approach as logout in store/auth-store).
+    window.location.href = '/';
   };
 
   const setHours = (day: string, field: 'open' | 'close' | 'enabled', value: string | boolean) => {
@@ -257,12 +330,14 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground">{isUploadingCover ? 'Uploading…' : 'Recommended: 1200×400px'}</p>
                 </div>
               )}
-              <input type="file" accept="image/*" className="hidden" onChange={(event) => {
+              <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file) {
-                  setCoverPreview(URL.createObjectURL(file));
-                  handleCoverUpload(file);
-                }
+                event.target.value = '';
+                if (!file) return;
+                const check = validateUpload(file, 'image');
+                if (!check.ok) { toast.error(check.error); return; }
+                setCoverPreview(URL.createObjectURL(file));
+                handleCoverUpload(file);
               }} />
             </label>
           </div>
@@ -352,21 +427,153 @@ export default function SettingsPage() {
           <CardDescription>Update your account password</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Current Password</Label>
+            <Input
+              type="password"
+              value={currentPwd}
+              onChange={e => setCurrentPwd(e.target.value)}
+              placeholder="Enter current password"
+              autoComplete="current-password"
+              className="sm:max-w-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Required, so a borrowed session cannot lock you out of your own account.
+            </p>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>New Password</Label>
-              <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Enter new password" />
+              <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" />
             </div>
             <div className="space-y-2">
               <Label>Confirm New Password</Label>
-              <Input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} placeholder="Confirm new password" />
+              <Input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} placeholder="Confirm new password" autoComplete="new-password" />
             </div>
           </div>
-          <Button onClick={changePassword} disabled={isSavingPwd} className="w-full sm:w-auto">
+          <Button onClick={submitPasswordChange} disabled={isSavingPwd} className="w-full sm:w-auto">
             {isSavingPwd ? 'Updating…' : 'Change Password'}
           </Button>
         </CardContent>
       </Card>
+
+      {/*
+        Danger zone. Last card on the page, deliberately below Change Password so
+        nothing destructive sits next to a field an owner edits day to day. Hidden
+        entirely unless getRestaurantDeleteInfo succeeded, which is only for a
+        RESTAURANT_OWNER; the server action is the actual gate.
+      */}
+      {deleteInfo && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete My Restaurant
+            </CardTitle>
+            <CardDescription>
+              Permanently close {deleteInfo.restaurantName || 'this outlet'} and erase its data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-destructive/40 bg-destructive-surface p-4">
+              <p className="text-sm font-semibold text-destructive-strong">
+                This cannot be undone.
+              </p>
+              <p className="mt-2 text-sm text-foreground">
+                Deleting removes your entire menu and categories, every table and QR code,
+                all staff records, order history, customers, reservations, coupons and print
+                settings. Every owner, reception and waiter login for this restaurant stops
+                working immediately.
+              </p>
+            </div>
+
+            {deleteInfo.billCount > 0 ? (
+              // Blocked rather than warned: Nepal's IRD rules expect issued
+              // invoices to be retained, which is why the billing engine voids
+              // bills instead of deleting them.
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <p className="text-sm font-medium">
+                  {deleteInfo.billCount} tax invoice{deleteInfo.billCount === 1 ? '' : 's'} on record
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Nepal&apos;s IRD rules require issued invoices to be kept, so this outlet
+                  cannot be deleted from here. Raise a{' '}
+                  <Link href="/owner/settings/support" className="font-medium text-primary hover:underline">
+                    support request
+                  </Link>{' '}
+                  to close the account.
+                </p>
+              </div>
+            ) : (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteConfirm('');
+                  setDeleteOpen(true);
+                }}
+                className="w-full gap-2 sm:w-auto"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete My Restaurant
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (isDeleting) return;
+          setDeleteOpen(open);
+          if (!open) setDeleteConfirm('');
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Delete {deleteInfo?.restaurantName || 'this restaurant'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Everything belonging to this restaurant is erased and you will be signed out.
+              There is no way to restore it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="delete-confirm">
+              Type <span className="font-semibold text-destructive-strong">
+                {deleteInfo?.confirmationPhrase}
+              </span> to confirm
+            </Label>
+            <Input
+              id="delete-confirm"
+              value={deleteConfirm}
+              onChange={(event) => setDeleteConfirm(event.target.value)}
+              placeholder={deleteInfo?.confirmationPhrase}
+              autoComplete="off"
+              disabled={isDeleting}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            {/*
+              A plain Button, not AlertDialogAction: the action variant closes the
+              dialog on click, and this one has to stay open while the transaction
+              runs and while an error is being reported.
+            */}
+            <Button
+              variant="destructive"
+              onClick={handleDeleteRestaurant}
+              disabled={!deletePhraseMatches || isDeleting}
+              className="gap-2"
+            >
+              {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin" />Deleting…</> : 'Delete Permanently'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="border-t pt-6">
         <p className="text-center text-sm text-muted-foreground">

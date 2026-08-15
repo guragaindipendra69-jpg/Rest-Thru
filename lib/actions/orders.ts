@@ -885,6 +885,12 @@ export async function voidOrderItem(data: {
   reason: string;
   approverUsername?: string;
   approverPassword?: string;
+  /**
+   * How many units to cancel. Defaults to the whole line; pass a smaller number
+   * to cancel only part of a multi-quantity line (e.g. 1 of "2x Black Forest
+   * Cake") instead of the entire line.
+   */
+  quantity?: number;
 }) {
   const session = await getSession();
   if (!session || !session.restaurantId) return { error: "Not authenticated" };
@@ -921,7 +927,39 @@ export async function voidOrderItem(data: {
       return { error: "Cannot void an item on a paid bill" };
     }
 
+    const voidQuantity = data.quantity && data.quantity > 0
+      ? Math.min(data.quantity, item.quantity)
+      : item.quantity;
+    const isPartial = voidQuantity < item.quantity;
+
     const order = await prisma.$transaction(async (tx) => {
+      if (isPartial) {
+        await tx.orderItem.update({
+          where: { id: item.id },
+          data: {
+            quantity: item.quantity - voidQuantity,
+            voidedBy: voidedById,
+            voidReason: data.reason.trim(),
+            voidedAt: new Date(),
+          },
+        });
+
+        const remainingItems = item.order.items.map((i) =>
+          i.id === item.id ? { ...i, quantity: i.quantity - voidQuantity } : i
+        );
+        const { subtotal, taxAmount, totalAmount, discount } = recomputeOrderTotals(
+          remainingItems,
+          item.order.serviceCharge,
+          item.order.discountAmount
+        );
+
+        return tx.order.update({
+          where: { id: item.order.id },
+          data: { subtotal, taxAmount, totalAmount, discountAmount: discount },
+          include: { items: true },
+        });
+      }
+
       await tx.orderItem.update({
         where: { id: item.id },
         data: {
@@ -955,7 +993,7 @@ export async function voidOrderItem(data: {
         actionType: "ORDER_ITEM_VOID",
         entityType: "OrderItem",
         entityId: item.id,
-        description: `${item.menuItemName} x${item.quantity} voided from order ${item.order.orderId} by ${session.username} (${approvalNote}): ${data.reason.trim()}`,
+        description: `${item.menuItemName} x${voidQuantity}${isPartial ? ` of ${item.quantity}` : ""} voided from order ${item.order.orderId} by ${session.username} (${approvalNote}): ${data.reason.trim()}`,
       },
     });
 
@@ -1085,6 +1123,10 @@ export async function getTableCheckout(orderId: string) {
       where: { id: restaurantId },
       select: {
         name: true, vatRegistered: true, taxPercentage: true,
+        // pricingMode and serviceCharge feed the checkout screen's own call to
+        // calculateBill: without them it cannot preview an ADDITIVE bill and
+        // would quote the guest a total that settleOrder then disagrees with.
+        pricingMode: true, serviceCharge: true,
         panNumber: true, vatNumber: true,
         street: true, city: true, state: true, phoneNumber: true, websiteUrl: true,
       },
@@ -1101,6 +1143,10 @@ export async function getTableCheckout(orderId: string) {
           quantity: i.quantity,
           rate: i.pricePerUnit,
           total: i.pricePerUnit * i.quantity,
+          // Carried so the preview taxes the same lines the bill will: an
+          // aggregate figure cannot express a Schedule 1 exemption.
+          vatExempt: i.vatExempt,
+          hsCode: i.hsCode,
         }))
     );
 

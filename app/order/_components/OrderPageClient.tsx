@@ -18,11 +18,13 @@ export default function OrderPageClient({
   categories,
   tables,
   waiterName,
+  userRole,
 }: {
   menuItems: MenuItem[];
   categories: PosCategory[];
   tables: PosTable[];
   waiterName: string;
+  userRole?: string | null;
 }) {
   const [view, setView] = useState<PosView>('menu');
   const searchParams = useSearchParams();
@@ -47,7 +49,7 @@ export default function OrderPageClient({
   return (
     <div className="flex flex-col h-[100dvh] w-full mx-auto bg-background overflow-hidden relative sm:border-x sm:border-border lg:max-w-3xl xl:max-w-5xl">
       {/* Header: search, category pills, view toggle */}
-      <OrderHeader categories={categories} view={view} onViewChange={setView} waiterName={waiterName} />
+      <OrderHeader categories={categories} view={view} onViewChange={setView} waiterName={waiterName} userRole={userRole} />
 
       {/* Main area: menu for building an order, or the live orders board */}
       <main className="flex-1 overflow-y-auto pb-24">

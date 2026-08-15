@@ -284,7 +284,9 @@ export default function CheckoutPage() {
     const result: any = await applyDiscountToBill(activeBill.id, amt, discountReason || undefined);
     if (result.error) { toast.error(result.error); return; }
     setActiveBill((prev: any) => prev ? { ...prev, discountAmount: result.data.discountAmount, totalAmount: result.data.totalAmount } : prev);
-    toast.success(`Discount of ${formatCurrency(amt)} applied`);
+    // The engine clamps a discount larger than the bill, so report what was
+    // actually applied rather than what the cashier typed.
+    toast.success(`Discount of ${formatCurrency(result.data.discountAmount)} applied`);
   };
 
   const handleApplyCoupon = async () => {

@@ -191,6 +191,7 @@ export function MobileMenu({
             <CategoryPage
               title={s.title}
               kicker={s.kicker}
+              imageUrl={s.imageUrl}
               items={s.items}
               pageNumber={i + 2}
               activeFilter="all"

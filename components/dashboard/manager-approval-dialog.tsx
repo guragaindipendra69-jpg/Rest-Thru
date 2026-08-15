@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import {
   Dialog,
@@ -33,6 +33,7 @@ export default function ManagerApprovalDialog({
   description,
   confirmLabel = 'Approve & Void',
   onConfirm,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,6 +41,7 @@ export default function ManagerApprovalDialog({
   description?: string;
   confirmLabel?: string;
   onConfirm: (data: ManagerApprovalPayload) => Promise<{ error?: string } | void>;
+  children?: React.ReactNode;
 }) {
   const [reason, setReason] = useState('');
   const [username, setUsername] = useState('');
@@ -96,6 +98,7 @@ export default function ManagerApprovalDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <div className="space-y-3">
+          {children}
           <div className="space-y-1.5">
             <Label htmlFor="approval-reason">Reason</Label>
             <Textarea
