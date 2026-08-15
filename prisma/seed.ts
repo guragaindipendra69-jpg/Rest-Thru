@@ -1,7 +1,31 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { PLAN_LIMITS, type PlanType } from "../lib/plan-limits";
 
 const prisma = new PrismaClient();
+
+// lib/plan-limits.ts is the single source of truth for caps, and its header
+// states the DB "is seeded from these same values". That was not true: this
+// file carried its own literals, and the three copies drifted -- FREE was
+// enforced at 10 staff by plan-guard while the seed wrote 3 and the live row
+// held 5, so the pricing page advertised a different cap than the one the
+// server applied. Deriving them here makes that comment true by construction.
+//
+// The cap columns are Int, so Infinity cannot be stored. UNLIMITED collapses
+// to the sentinels the schema already used (9999 for tables/menu items, 999
+// for staff/locations), and formatCap() on the pricing page renders anything
+// at or above 9999 as "Unlimited".
+function capsFor(type: PlanType) {
+  const limits = PLAN_LIMITS[type];
+  const finite = (value: number, sentinel: number) =>
+    Number.isFinite(value) ? value : sentinel;
+  return {
+    maxTables: finite(limits.maxTables, 9999),
+    maxStaff: finite(limits.maxStaff, 999),
+    maxMenuItems: finite(limits.maxMenuItems, 9999),
+    maxRestaurants: finite(limits.maxRestaurants, 999),
+  };
+}
 
 async function main() {
   const adminPassword = await bcrypt.hash("admin@123", 12);
@@ -48,10 +72,7 @@ async function main() {
       monthlyPrice: 0,
       annualPrice: 0,
       currency: "NPR",
-      maxRestaurants: 1,
-      maxTables: 5,
-      maxStaff: 3,
-      maxMenuItems: 10,
+      ...capsFor("FREE"),
       features: [
         "Up to 5 tables",
         "Basic QR ordering",
@@ -71,10 +92,7 @@ async function main() {
       monthlyPrice: 999,
       annualPrice: 9990,
       currency: "NPR",
-      maxRestaurants: 1,
-      maxTables: 20,
-      maxStaff: 10,
-      maxMenuItems: 50,
+      ...capsFor("BASIC"),
       features: [
         "Up to 20 tables",
         "Full QR ordering",
@@ -95,10 +113,7 @@ async function main() {
       monthlyPrice: 2999,
       annualPrice: 29990,
       currency: "NPR",
-      maxRestaurants: 3,
-      maxTables: 50,
-      maxStaff: 50,
-      maxMenuItems: 200,
+      ...capsFor("PRO"),
       features: [
         "Unlimited tables",
         "All Growth features",
@@ -120,10 +135,7 @@ async function main() {
       monthlyPrice: 9999,
       annualPrice: 99990,
       currency: "NPR",
-      maxRestaurants: 999,
-      maxTables: 9999,
-      maxStaff: 999,
-      maxMenuItems: 9999,
+      ...capsFor("ENTERPRISE"),
       features: [
         "Unlimited tables",
         "All Pro features",

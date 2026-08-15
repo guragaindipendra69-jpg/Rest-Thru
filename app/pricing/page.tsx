@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getPublicPlans, type PublicPlan } from '@/lib/actions/get-plans-public';
+import { PLAN_LIMITS, type FeatureFlag, type PlanType } from '@/lib/plan-limits';
 
 const accentColors: Record<string, 'gray' | 'indigo' | 'emerald' | 'amber'> = {
   free: 'gray',
@@ -18,30 +19,69 @@ const accentColors: Record<string, 'gray' | 'indigo' | 'emerald' | 'amber'> = {
   enterprise: 'amber',
 };
 
-const comparisonFeatures = [
+// Comparison rows come in three kinds, and only the last one is editorial.
+//
+// `cap`  - a numeric limit, rendered as the actual figure from the plan row.
+//          A cap is not a yes/no capability: rendering "Up to 5 menu items"
+//          as a tick made every paid tier show a red cross, i.e. "no menu
+//          items", which is exactly backwards on a page that sells them.
+// `flag` - a boolean capability resolved from PLAN_LIMITS[type].features, so
+//          this table cannot drift from lib/plan-limits.ts the way the old
+//          hand-written map had.
+// `text` - support tier. There is no feature flag for it, so it stays copy.
+type ComparisonRow =
+  | { label: string; cap: 'maxTables' | 'maxMenuItems' | 'maxStaff' | 'maxRestaurants' }
+  | { label: string; flag: FeatureFlag }
+  | { label: string; text: Partial<Record<PlanType, string>> };
+
+const comparisonFeatures: { category: string; items: ComparisonRow[] }[] = [
   {
-    category: 'Restaurant Management',
-    items: ['Up to 5 menu items', 'Basic table management', 'Advanced table management'],
+    category: 'Capacity',
+    items: [
+      { label: 'Tables', cap: 'maxTables' },
+      { label: 'Menu items', cap: 'maxMenuItems' },
+      { label: 'Staff accounts', cap: 'maxStaff' },
+      { label: 'Locations', cap: 'maxRestaurants' },
+    ],
   },
   {
     category: 'Orders & Menu',
-    items: ['Order tracking', 'Real-time order tracking', 'Multiple payment methods', 'Menu customization'],
+    items: [
+      { label: 'Live order tracking', flag: 'ORDER_TRACKING' },
+      { label: 'Multiple payment methods', flag: 'MULTIPLE_PAYMENTS' },
+    ],
   },
   {
     category: 'Staff & Inventory',
-    items: ['Staff management', 'Staff roles & permissions', 'Inventory tracking'],
+    items: [{ label: 'Staff roster & roles', flag: 'STAFF_MANAGEMENT' }],
   },
   {
     category: 'Reports & Billing',
-    items: ['Basic reports', 'Analytics & reports', 'IRD-compliant VAT billing', 'Financial exports'],
-  },
-  {
-    category: 'Support',
-    items: ['Email support', 'Priority email support', 'Phone & email support'],
+    items: [
+      { label: 'IRD-compliant VAT billing', flag: 'VAT_BILLING' },
+      { label: 'Real-time analytics', flag: 'REALTIME_ANALYTICS' },
+    ],
   },
   {
     category: 'Integrations',
-    items: ['Thermal printer support', 'API access'],
+    items: [
+      { label: 'Thermal printer support', flag: 'THERMAL_PRINTER' },
+      { label: 'API access', flag: 'API_ACCESS' },
+    ],
+  },
+  {
+    category: 'Support',
+    items: [
+      {
+        label: 'Support',
+        text: {
+          FREE: 'Email',
+          BASIC: 'Priority email',
+          PRO: 'Phone & email',
+          ENTERPRISE: 'Dedicated',
+        },
+      },
+    ],
   },
 ];
 
@@ -96,27 +136,23 @@ const faqItems = [
   },
 ];
 
-const planFeatureMap: Record<string, Record<string, boolean>> = {
-  'Up to 5 menu items': { free: true, basic: false, pro: false, enterprise: false },
-  'Basic table management': { free: true, basic: true, pro: true, enterprise: true },
-  'Advanced table management': { free: false, basic: true, pro: true, enterprise: true },
-  'Order tracking': { free: false, basic: true, pro: true, enterprise: true },
-  'Real-time order tracking': { free: false, basic: false, pro: true, enterprise: true },
-  'Multiple payment methods': { free: false, basic: false, pro: true, enterprise: true },
-  'Menu customization': { free: false, basic: true, pro: true, enterprise: true },
-  'Staff management': { free: false, basic: true, pro: true, enterprise: true },
-  'Staff roles & permissions': { free: false, basic: false, pro: true, enterprise: true },
-  'Inventory tracking': { free: false, basic: false, pro: true, enterprise: true },
-  'Basic reports': { free: false, basic: false, pro: true, enterprise: true },
-  'Analytics & reports': { free: false, basic: false, pro: true, enterprise: true },
-  'IRD-compliant VAT billing': { free: false, basic: false, pro: true, enterprise: true },
-  'Financial exports': { free: false, basic: false, pro: true, enterprise: true },
-  'Email support': { free: true, basic: false, pro: false, enterprise: false },
-  'Priority email support': { free: false, basic: true, pro: true, enterprise: true },
-  'Phone & email support': { free: false, basic: false, pro: true, enterprise: true },
-  'Thermal printer support': { free: false, basic: true, pro: true, enterprise: true },
-  'API access': { free: false, basic: false, pro: true, enterprise: true },
-};
+// The DB `plan.type` is a free-form string, and its display name is not its
+// type (BASIC is sold as "Growth", PRO as "Enterprise"), so it has to be
+// narrowed to a PlanType before PLAN_LIMITS can be indexed. Returning null for
+// an unrecognised type is deliberate: the previous map returned `undefined` on
+// a miss, which React rendered as a red cross, so a plan the page did not know
+// about silently advertised *no* features rather than showing nothing.
+function toPlanType(type: string): PlanType | null {
+  const key = type.toUpperCase();
+  return key in PLAN_LIMITS ? (key as PlanType) : null;
+}
+
+// 9999 is the seed's "unlimited" sentinel for a cap column; PLAN_LIMITS uses
+// Infinity for the same idea. Treat both as unlimited.
+function formatCap(value: number): string {
+  if (!Number.isFinite(value) || value >= 9999) return 'Unlimited';
+  return String(value);
+}
 
 export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(false);
@@ -255,7 +291,7 @@ export default function PricingPage() {
                           {section.category}
                         </td>
                       </tr>
-                      {section.items.map((feature, featureIdx) => (
+                      {section.items.map((row, featureIdx) => (
                         <tr
                           key={featureIdx}
                           className={cn(
@@ -263,15 +299,29 @@ export default function PricingPage() {
                             featureIdx % 2 === 0 ? 'bg-background' : 'bg-muted/50'
                           )}
                         >
-                          <td className="px-6 py-4 text-left text-foreground">{feature}</td>
+                          <td className="px-6 py-4 text-left text-foreground">{row.label}</td>
                           {plans.map((plan) => {
-                            const typeKey = plan.type.toLowerCase();
+                            const planType = toPlanType(plan.type);
                             return (
                               <td key={plan.id} className="px-6 py-4 text-center">
-                                {planFeatureMap[feature]?.[typeKey] ? (
-                                  <Check className="mx-auto h-5 w-5 text-success" />
+                                {'cap' in row ? (
+                                  <span className="font-medium text-foreground">
+                                    {formatCap(plan[row.cap])}
+                                  </span>
+                                ) : 'text' in row ? (
+                                  <span className="text-foreground">
+                                    {(planType && row.text[planType]) || '-'}
+                                  </span>
+                                ) : planType && PLAN_LIMITS[planType].features.includes(row.flag) ? (
+                                  <Check
+                                    className="mx-auto h-5 w-5 text-success"
+                                    aria-label={`${row.label} included`}
+                                  />
                                 ) : (
-                                  <X className="mx-auto h-5 w-5 text-destructive" />
+                                  <X
+                                    className="mx-auto h-5 w-5 text-destructive"
+                                    aria-label={`${row.label} not included`}
+                                  />
                                 )}
                               </td>
                             );
