@@ -170,7 +170,6 @@ export default function SupportCenter() {
               <TicketChat
                 ticketId={selectedTicketId}
                 currentUserId={adminUser.id}
-                currentRole="SUPERADMIN"
               />
             </div>
           ) : (

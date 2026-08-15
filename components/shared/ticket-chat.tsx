@@ -22,14 +22,16 @@ type Reply = {
   createdAt: string | Date;
 };
 
+// The "Support" vs "You" badge and the shield icon come from `reply.role`, which
+// the server stamps from the verified session in addTicketReply. There is
+// deliberately no `currentRole` prop: one existed, was never read, and implied
+// the caller chose how replies were attributed.
 export function TicketChat({
   ticketId,
   currentUserId,
-  currentRole,
 }: {
   ticketId: string;
   currentUserId: string;
-  currentRole: string;
 }) {
   const [replies, setReplies] = useState<Reply[]>([]);
   const [message, setMessage] = useState('');

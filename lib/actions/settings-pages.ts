@@ -221,9 +221,14 @@ export async function getSupportTickets() {
       take: 50,
       select: {
         id: true, subject: true, message: true, status: true, createdAt: true,
+        // Drives the "Thread" column so an owner can see a ticket has been
+        // answered without opening it.
+        _count: { select: { replies: true } },
       },
     });
-    return { data: tickets };
+    return {
+      data: tickets.map(({ _count, ...t }) => ({ ...t, replyCount: _count.replies })),
+    };
   } catch (err: any) {
     return { error: err?.message || "Failed to load support tickets" };
   }
