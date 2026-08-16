@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 
@@ -161,7 +162,20 @@ export function StaffLoginsSection({
         )}
 
         {loading ? (
-          <p className="py-4 text-sm text-muted-foreground">Loading...</p>
+          // Matches the row geometry below (rounded muted block, name line plus
+          // a smaller meta line) so the list doesn't jump when it resolves. Kept
+          // separate from the "No ... created yet" branch: an owner must be able
+          // to tell a list still loading from one that is genuinely empty,
+          // because the second is what prompts them to create a login.
+          <div className="space-y-2" aria-busy="true" aria-live="polite">
+            <span className="sr-only">Loading {title.toLowerCase()}</span>
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="rounded-lg bg-muted/50 p-3 space-y-2">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-1/4" />
+              </div>
+            ))}
+          </div>
         ) : logins.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No {title.toLowerCase()} created yet.

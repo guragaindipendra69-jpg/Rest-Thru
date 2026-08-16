@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -376,8 +377,22 @@ export default function TopHeader() {
                 -- notifications past 420px became unreachable. */}
             <div className="max-h-[420px] overflow-y-auto">
               {isLoading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  Loading...
+                // Shaped like NotificationItem below (8x8 rounded icon, two text
+                // lines) so the panel doesn't reflow when the rows arrive. The
+                // empty branch stays a distinct "All caught up!" message: an
+                // inbox that is still loading and an inbox with nothing in it
+                // must not look the same.
+                <div className="divide-y divide-border" aria-busy="true" aria-live="polite">
+                  <span className="sr-only">Loading notifications</span>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3 px-4 py-3">
+                      <Skeleton className="mt-0.5 h-8 w-8 shrink-0 rounded-full" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3.5 w-2/5" />
+                        <Skeleton className="h-3 w-4/5" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="py-14 flex flex-col items-center gap-2 text-muted-foreground">

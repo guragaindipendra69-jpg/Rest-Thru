@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AdminPageSkeleton } from '@/components/superadmin/skeletons';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -63,10 +64,11 @@ export default function AdminPipeline() {
             <Download className="h-4 w-4 mr-1.5" /> Export
           </Button>
         </PageHeader>
-        <div className="text-center py-12 text-muted-foreground text-sm">Loading...</div>
+        <AdminPageSkeleton />
       </div>
     );
   }
+
 
   const totalLeads = data.totalRestaurants;
   const activeTrials = data.subscriptions.filter((s: any) => s.status === "ACTIVE").length;

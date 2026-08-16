@@ -333,6 +333,7 @@ export default function AdminSettings() {
                   <Button
                     variant="ghost" size="icon" disabled={!security}
                     onClick={handleCopyKey}
+                    aria-label="Copy API key"
                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
                   >
                     <Copy className="h-4 w-4" />
@@ -340,6 +341,8 @@ export default function AdminSettings() {
                   <Button
                     variant="ghost" size="icon" disabled={!security}
                     onClick={() => setKeyRevealed((v) => !v)}
+                    aria-label={keyRevealed ? 'Hide API key' : 'Reveal API key'}
+                    aria-pressed={keyRevealed}
                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
                   >
                     {keyRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
+import { AdminPageSkeleton } from '@/components/superadmin/skeletons';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -111,7 +112,7 @@ export default function AdminSubscriptions() {
             </Badge>
           </div>
         </div>
-        <div className="text-center py-12 text-muted-foreground text-sm">Loading...</div>
+        <AdminPageSkeleton />
       </div>
     );
   }

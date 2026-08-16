@@ -197,6 +197,7 @@ const ReceptionSidebar = memo(function ReceptionSidebar() {
                     variant="ghost"
                     size="icon"
                     onClick={logout}
+                    aria-label="Logout"
                     className="h-7 w-7 text-sidebar-muted hover:text-sidebar-danger hover:bg-sidebar-danger/10 flex-shrink-0"
                   >
                     <LogOut className="h-3.5 w-3.5" />
@@ -212,6 +213,7 @@ const ReceptionSidebar = memo(function ReceptionSidebar() {
                   variant="ghost"
                   size="icon"
                   onClick={logout}
+                  aria-label="Logout"
                   className="w-10 h-10 mx-auto flex text-sidebar-muted hover:text-sidebar-danger hover:bg-sidebar-danger/10"
                 >
                   <LogOut className="h-4 w-4" />

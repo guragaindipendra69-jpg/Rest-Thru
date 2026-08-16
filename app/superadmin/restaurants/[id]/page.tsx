@@ -47,7 +47,12 @@ export default function RestaurantDetail() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/superadmin/restaurants">
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Back to all restaurants"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
                 <ArrowLeft className="h-4.5 w-4.5" />
               </Button>
             </Link>
@@ -57,7 +62,7 @@ export default function RestaurantDetail() {
             </div>
           </div>
         </div>
-        <div className="text-center py-12 text-muted-foreground text-sm">Loading...</div>
+        <AdminPageSkeleton />
       </div>
     );
   }
@@ -69,7 +74,12 @@ export default function RestaurantDetail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/superadmin/restaurants">
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back to all restaurants"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+            >
               <ArrowLeft className="h-4.5 w-4.5" />
             </Button>
           </Link>

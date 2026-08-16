@@ -176,7 +176,13 @@ export function TicketChat({
           placeholder="Type a message..."
           className="flex-1 bg-muted border-border text-foreground placeholder:text-muted-foreground text-sm h-9"
         />
-        <Button size="icon" className="h-9 w-9 shrink-0" disabled={sending || (!message.trim() && !imageFile)} onClick={handleSend}>
+        <Button
+          size="icon"
+          className="h-9 w-9 shrink-0"
+          aria-label={sending ? 'Sending reply' : 'Send reply'}
+          disabled={sending || (!message.trim() && !imageFile)}
+          onClick={handleSend}
+        >
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>

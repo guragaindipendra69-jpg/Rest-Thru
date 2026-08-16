@@ -533,7 +533,12 @@ export default function CheckoutPage() {
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
                       />
-                      <Button variant="outline" size="sm" onClick={handleLookupCustomer}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleLookupCustomer}
+                        aria-label="Look up customer by phone number"
+                      >
                         <Search className="w-3 h-3" />
                       </Button>
                     </div>

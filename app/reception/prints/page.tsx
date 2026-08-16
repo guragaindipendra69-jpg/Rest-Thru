@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getSettingsData } from '@/lib/actions/settings';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
@@ -91,7 +92,35 @@ export default function PrintsPage() {
         <TabsContent value="printers" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {loading ? (
-              <div className="col-span-2 text-center py-16 text-muted-foreground">Loading...</div>
+              // Two cards shaped like the printer card below (p-6, icon tile plus
+              // name/type, a separator, then the detail grid) so the grid does not
+              // reflow when the list resolves. Deliberately not merged with the
+              // "No printers configured" branch beneath it: that one links to
+              // Settings, and offering that link while the fetch is still in
+              // flight tells the user to configure printers they may already have.
+              <>
+                <span className="sr-only" aria-live="polite">Loading printers</span>
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Card key={i} aria-busy="true">
+                    <CardContent className="p-6">
+                      <div className="mb-4 flex items-center gap-3">
+                        <Skeleton className="h-12 w-12 rounded-lg" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-1/3" />
+                          <Skeleton className="h-3 w-1/5" />
+                        </div>
+                      </div>
+                      <Separator className="mb-4" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Skeleton className="h-3.5 w-4/5" />
+                        <Skeleton className="h-3.5 w-3/5" />
+                      </div>
+                      <Separator className="my-4" />
+                      <Skeleton className="h-9 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
             ) : printers.length === 0 ? (
               <div className="col-span-2 text-center py-16 text-muted-foreground">
                 <Printer className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -133,10 +162,21 @@ export default function PrintsPage() {
                         <Button variant="outline" size="sm" className="flex-1" onClick={() => handlePrintTest(printer)}>
                           <FileText className="h-4 w-4 mr-2" /> Test Print
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleRefreshPrinter(idx)} disabled={refreshingIdx === idx}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleRefreshPrinter(idx)}
+                          disabled={refreshingIdx === idx}
+                          aria-label={`Recheck ${printer.name}`}
+                        >
                           <RefreshCw className={`h-4 w-4 ${refreshingIdx === idx ? 'animate-spin' : ''}`} />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => window.open('/reception/settings', '_self')}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => window.open('/reception/settings', '_self')}
+                          aria-label={`Configure ${printer.name} in Settings`}
+                        >
                           <Settings className="h-4 w-4" />
                         </Button>
                       </div>
