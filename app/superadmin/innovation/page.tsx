@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatNumber } from '@/lib/format';
+import { KpiSkeleton, SectionSkeleton } from '@/components/superadmin/skeletons';
 import { getInnovationData } from '@/lib/actions/admin';
 
 export default function AdminInnovation() {
@@ -41,7 +42,7 @@ export default function AdminInnovation() {
         </CardHeader>
         <CardContent>
           {!data ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No insights available</div>
+            <KpiSkeleton />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {data.insights.map((insight: any, idx: number) => {
@@ -72,7 +73,7 @@ export default function AdminInnovation() {
         </CardHeader>
         <CardContent>
           {!data ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No data available</div>
+            <SectionSkeleton rows={3} />
           ) : data.benchmarks.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">No restaurants yet</div>
           ) : (

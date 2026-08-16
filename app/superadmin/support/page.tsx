@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatNumber, formatRelativeTime } from '@/lib/format';
+import { SectionSkeleton } from '@/components/superadmin/skeletons';
 import { getSupportQuickStats, getSentAnnouncements, sendMassCommunication } from '@/lib/actions/admin';
 import { getSupportTickets, updateTicketStatus } from '@/lib/actions/support';
 import { getCurrentUser } from '@/lib/actions/auth';
@@ -409,7 +410,7 @@ export default function SupportCenter() {
                 </CardHeader>
                 <CardContent>
                   {!stats ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">No stats available</div>
+                    <SectionSkeleton rows={4} />
                   ) : (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">

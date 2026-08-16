@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatNumber } from '@/lib/format';
+import { KpiSkeleton, SectionSkeleton } from '@/components/superadmin/skeletons';
 import { getPlatformStats, getAllRestaurants } from '@/lib/actions/admin';
 
 export default function AdminMarketing() {
@@ -54,7 +55,7 @@ export default function AdminMarketing() {
         </CardHeader>
         <CardContent>
           {!stats ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No CMS data available</div>
+            <KpiSkeleton />
           ) : (
             <Tabs value={cmsTab} className="w-full">
               <TabsContent value="all" className="mt-0">
@@ -134,7 +135,7 @@ export default function AdminMarketing() {
         </CardHeader>
         <CardContent>
           {!stats ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No data available</div>
+            <SectionSkeleton rows={2} />
           ) : (
             <div className="space-y-3">
               <div className="flex justify-between p-3 rounded-lg bg-muted/50 border border-border">
