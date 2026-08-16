@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { getSession, clearSession } from "@/lib/auth";
 import { requireTenant, OWNER_ROLES, FRONT_OF_HOUSE_ROLES, ALL_TENANT_ROLES } from "@/lib/auth-tenant";
 import { restaurantPurgeOperations } from "@/lib/restaurant-purge";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 import { validatePhone } from "@/lib/phone-validator";
 
 // Every export here used to take the target `restaurantId` as its first argument

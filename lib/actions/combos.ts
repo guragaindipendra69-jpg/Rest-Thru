@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { requireTenant, OWNER_ROLES, FRONT_OF_HOUSE_ROLES } from "@/lib/auth-tenant";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 export type ComboItemData = {
   id: string;

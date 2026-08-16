@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { createSession, clearSession, getSession } from "@/lib/auth";
 import { isApproverRole } from "@/lib/manager-approval";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 import { validatePhone } from "@/lib/phone-validator";
 import { safeRedirectForRole } from "@/lib/constants";
 import { verifyGoogleTicket } from "@/lib/google-ticket";

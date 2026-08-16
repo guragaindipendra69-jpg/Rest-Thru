@@ -7,7 +7,7 @@ import {
   ALL_TENANT_ROLES,
   FRONT_OF_HOUSE_ROLES,
 } from "@/lib/auth-tenant";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 // Every action here derives restaurantId from the session, never from the
 // caller. `restaurantId` parameters are still accepted at the call sites that

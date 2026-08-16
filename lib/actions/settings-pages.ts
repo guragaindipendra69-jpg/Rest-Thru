@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 /** Data for the smaller Settings pages: Activity Log, Users Role, Trash, Support. */
 

@@ -191,7 +191,15 @@ async function main() {
       passwordHash: restaurantPassword,
       firstName: "Himalayan",
       lastName: "Java Owner",
-      role: "OWNER",
+      // Must be RESTAURANT_OWNER, not "OWNER". `User.role` is a free-text
+      // String, so a wrong value is accepted silently and only fails later:
+      // portalForRole() falls through to the owner portal for anything it
+      // doesn't recognise, so this account could log in and reach the
+      // dashboard, but OWNER_ROLES in lib/auth-tenant.ts is
+      // ["RESTAURANT_OWNER", "STAFF"] - so every tenant-scoped action then
+      // rejected it. The seeded demo owner was a login that appeared to work
+      // and could do nothing.
+      role: "RESTAURANT_OWNER",
       restaurantId: restaurant.id,
       isActive: true,
     },

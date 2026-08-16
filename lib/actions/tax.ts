@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 export async function getTaxRates() {
   const session = await getSession();

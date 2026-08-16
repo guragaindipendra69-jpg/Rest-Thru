@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 import { validatePhone } from "@/lib/phone-validator";
 import { chartColor, paymentColor } from "@/lib/constants";
 import { restaurantPurgeOperations } from "@/lib/restaurant-purge";

@@ -2,7 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
+import { notifyServers } from "@/lib/order-helpers";
 import { verifyManagerApproval } from "@/lib/manager-approval";
 import { newTableToken } from "@/lib/table-token";
 import { calculateBill } from "@/lib/billing/calculate";
@@ -23,24 +24,6 @@ import {
 } from "@/lib/billing/receipt";
 
 const SELF_VOID_ROLES = ["RECEPTIONIST", "MANAGER", "RESTAURANT_OWNER", "ADMIN", "SUPER_ADMIN"];
-
-/** Looks up the restaurant's default effective tax rate (TaxRate model > restaurant.taxPercentage > 13%). */
-export async function getEffectiveTaxRate(restaurantId: string): Promise<number> {
-  try {
-    const defaultRate = await prisma.taxRate.findFirst({
-      where: { restaurantId, isDefault: true, isActive: true },
-      select: { rate: true },
-    });
-    if (defaultRate) return defaultRate.rate;
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-      select: { taxPercentage: true },
-    });
-    return restaurant?.taxPercentage ?? 13;
-  } catch {
-    return 13;
-  }
-}
 
 // Order lifecycle: PENDING → PREPARING → READY → SERVED (+ Bill = closed)
 // CANCELLED is allowed from PENDING/PREPARING only.
@@ -81,56 +64,6 @@ async function releaseTableForOrder(tx: any, order: { id: string; tableId: strin
           },
     });
   }
-}
-
-/** Notifies the assigned waiter, or every active waiter/staff member if unassigned. */
-export async function notifyServers(
-  restaurantId: string,
-  order: { id: string; orderId: string; assignedWaiterId: string | null },
-  title: string,
-  message: string,
-  type: string,
-  opts?: {
-    /** Where the notification's "View" button should take the recipient. */
-    actionUrl?: string;
-    /** Never notify this user — used so the person who just acted isn't pinged. */
-    excludeUserId?: string;
-    /** Alert the whole front of house even when the order has an assigned waiter. */
-    notifyAll?: boolean;
-  }
-) {
-  let recipientIds: string[];
-  if (order.assignedWaiterId && !opts?.notifyAll) {
-    recipientIds = [order.assignedWaiterId];
-  } else {
-    // Don't notify owners about ORDER_READY — they don't need to hear every
-    // "food ready" ring. Keep all other types flowing to everyone active.
-    const excludeRoles = type === "ORDER_READY"
-      ? ["KITCHEN", "ADMIN", "SUPER_ADMIN", "OWNER"]
-      : ["KITCHEN", "ADMIN", "SUPER_ADMIN"];
-    const servers = await prisma.user.findMany({
-      where: { restaurantId, role: { notIn: excludeRoles }, isActive: true },
-      select: { id: true },
-    });
-    recipientIds = servers.map((s) => s.id);
-  }
-  if (opts?.excludeUserId) {
-    recipientIds = recipientIds.filter((id) => id !== opts.excludeUserId);
-  }
-  if (recipientIds.length === 0) return;
-
-  await prisma.notification.createMany({
-    data: recipientIds.map((id) => ({
-      recipientUserId: id,
-      restaurantId,
-      type,
-      title,
-      message,
-      relatedEntityId: order.id,
-      relatedEntityType: "Order",
-      actionUrl: opts?.actionUrl ?? null,
-    })),
-  });
 }
 
 const TABLE_ORDER_TYPES = ["DINE_IN"];

@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { requireTenant, OWNER_ROLES } from "@/lib/auth-tenant";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 import { checkResourceLimit, limitMessage } from "@/lib/plan-guard";
 import { validatePhone } from "@/lib/phone-validator";
 

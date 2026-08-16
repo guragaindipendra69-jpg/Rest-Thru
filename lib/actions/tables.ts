@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { checkResourceLimit, limitMessage } from "@/lib/plan-guard";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 // `restaurantId` is still accepted so existing call sites keep working, but it
 // is deliberately ignored. Every export of a "use server" module is a public

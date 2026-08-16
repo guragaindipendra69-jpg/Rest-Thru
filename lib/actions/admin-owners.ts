@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 // Cross-tenant owner management for the platform admin console. Like the other
 // admin.* modules, every export re-checks the caller is an admin because Server

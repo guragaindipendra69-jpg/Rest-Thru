@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 // Like requireAdmin() in admin.ts: every export here reaches across tenants, so
 // each one independently verifies the caller is a platform admin. Server Actions

@@ -8,7 +8,7 @@
 
 import prisma from "@/lib/prisma";
 import { newTableToken } from "@/lib/table-token";
-import { notifyServers } from "@/lib/actions/orders";
+import { notifyServers } from "@/lib/order-helpers";
 
 const MAX_QUANTITY_PER_ITEM = 20;
 const MAX_DISTINCT_ITEMS = 50;

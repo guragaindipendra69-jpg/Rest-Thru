@@ -16,6 +16,15 @@ async function requireAdmin() {
 }
 
 export async function getPromoCodes() {
+  // Every writer in this module is admin-only but the reader was not, and it is
+  // a "use server" export, so any anonymous POST returned the platform's whole
+  // promo catalogue: codes, discount values, usage limits and expiry. A promo
+  // code IS the secret - knowing it is what redeems it - so an unguarded list
+  // hands out every live discount. The only call site is the superadmin
+  // Subscriptions console.
+  const session = await requireAdmin();
+  if (!session) return [];
+
   return prisma.promoCode.findMany({ orderBy: { createdAt: "desc" } });
 }
 

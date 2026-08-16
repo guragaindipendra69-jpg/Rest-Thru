@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth-tenant";
-import { logActivity } from "./logs";
+import { logActivity } from "@/lib/activity-log";
 
 // Spaces are per-restaurant, fully custom (add/rename/delete) — see the Space
 // model in prisma/schema.prisma. RestaurantTable.space is a free-text column,
