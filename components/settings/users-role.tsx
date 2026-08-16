@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/shared/page-header";
 import { toast } from "sonner";
 import { getUsersAndRoles, setUserActive } from "@/lib/actions/settings-pages";
 
@@ -49,7 +50,7 @@ export default function UsersRolePage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Users Role</h1>
+      <PageHeader title="Users Role" />
 
       <div>
         <p className="text-sm font-medium mb-3">Default Roles</p>

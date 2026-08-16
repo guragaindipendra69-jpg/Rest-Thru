@@ -147,23 +147,35 @@ export default function QRCodeCenterPage() {
     if (!win) return;
     const svg = qrRef.current?.querySelector('svg');
     if (!svg) return;
+    // A standalone print document, so it cannot read the token layer and every
+    // colour has to be a literal - the same reason lib/printing.ts spells its
+    // values out. The literals here used to be indigo, which appears nowhere
+    // else in the product: this sheet is what a guest sees stuck to their table,
+    // and it was the one surface carrying a brand colour the app does not use.
+    // These now mirror --primary / --primary-deep / --muted-foreground from
+    // app/globals.css. The QR itself stays pure black on white below; a scanner
+    // needs the maximum contrast it can get and a tinted module is a misread.
+    const INK = '#0B6B4F';       // --primary       jewel emerald
+    const INK_DEEP = '#064E3B';  // --primary-deep  heading weight
+    const META = '#5F6B66';      // --muted-foreground
+    const RULE = '#DDE3DF';      // hairline, mid-way between --border and paper
     win.document.write(`
       <html><head><title>Table ${tableNumber} QR</title>
-      <style>body{display:flex;justify-content:center;align-items:center;height:100vh;margin:0;padding:20px;font-family:sans-serif;}
-      .card{text-align:center;padding:40px;border:2px solid #e2e8f0;border-radius:16px;max-width:400px;}
+      <style>body{display:flex;justify-content:center;align-items:center;height:100vh;margin:0;padding:20px;font-family:sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+      .card{text-align:center;padding:40px;border:2px solid ${RULE};border-radius:16px;max-width:400px;}
       img{width:250px;height:250px;}
-      h2{margin:16px 0 4px;font-size:24px;}p{color:#64748b;margin:4px 0;}
-      h1{color:#4f46e5;margin:8px 0;font-size:32px;}</style></head><body>
+      h2{margin:16px 0 4px;font-size:24px;color:${INK_DEEP};}p{color:${META};margin:4px 0;}
+      h1{color:${INK};margin:8px 0;font-size:32px;}</style></head><body>
       <div class="card">
         <div class="flex items-center justify-center gap-2 mb-4">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${INK}" stroke-width="2">
             <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
           </svg>
-          <span style="font-weight:700;color:#4f46e5;font-size:20px;">Resthru</span>
+          <span style="font-weight:700;color:${INK};font-size:20px;">Resthru</span>
         </div>
         ${new XMLSerializer().serializeToString(svg)}
         <h2>${restaurantName}</h2>
-        <h1 style="color:#4f46e5;font-size:32px;font-weight:700;">Table ${tableNumber}</h1>
+        <h1 style="color:${INK};font-size:32px;font-weight:700;">Table ${tableNumber}</h1>
         <p>${customMessage}</p>
         <p style="margin-top:16px;font-size:12px;">resthru.com</p>
       </div></body></html>

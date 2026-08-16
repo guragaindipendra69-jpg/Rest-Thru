@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { useAuthStore } from "@/store/auth-store";
 import { getRestaurant, getSettingsData, updateRestaurant, upsertSettings } from "@/lib/actions/settings";
 import { createTaxRate, deleteTaxRate, getTaxRates, updateTaxRate } from "@/lib/actions/tax";
@@ -103,18 +104,15 @@ export default function TaxSettingPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Tax &amp; VAT</h1>
-          <p className="text-sm text-muted-foreground">
-            Registration numbers and rates printed on every tax invoice.
-          </p>
-        </div>
+      <PageHeader
+        title="Tax &amp; VAT"
+        description="Registration numbers and rates printed on every tax invoice."
+      >
         <Button size="sm" className="gap-2" disabled={saving} onClick={save}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Save Changes
         </Button>
-      </div>
+      </PageHeader>
 
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
         <div className="w-full min-w-0 flex-1 space-y-5">

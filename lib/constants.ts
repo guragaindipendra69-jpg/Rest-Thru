@@ -69,6 +69,20 @@ export const CHART_SERIES = [
 export const chartColor = (i: number): string =>
   CHART_SERIES[((i % CHART_SERIES.length) + CHART_SERIES.length) % CHART_SERIES.length];
 
+// De-emphasised series: a "same metric, previous period" comparison line, which
+// must read as a reference rather than as a seventh category. Mirrors
+// --muted-foreground, whose pairing against --card check-contrast.mjs already
+// guards at 4.5:1, so this is a measured value and not a grey picked by eye.
+//
+// It is spelled out rather than read through var() for the reason CHART_SERIES
+// gives above: an SVG presentation attribute does not resolve a CSS custom
+// property. The comparison line previously used Tailwind's gray-400 (#9ca3af),
+// which measures 2.54:1 on a white card - under the 3:1 a chart series needs, so
+// the line the reader was meant to compare against was the faintest thing on
+// the plot. Note this is only for series ink; axis lines and tick text are
+// styled globally in the RECHARTS block of app/globals.css and need nothing here.
+export const CHART_REFERENCE = 'hsl(155, 6%, 40%)';
+
 // Stable slot per payment method, so a method keeps its colour between
 // renders instead of shifting when a different method appears in the data.
 // There are seven methods and six accessible series, so QR doubles up with

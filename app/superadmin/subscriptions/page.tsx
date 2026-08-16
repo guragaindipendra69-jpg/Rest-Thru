@@ -100,18 +100,19 @@ export default function AdminSubscriptions() {
   if (!data) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">Subscription & Billing</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage subscriptions, invoices, and promotional codes</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary mr-1.5 animate-pulse" />
-              Auto-billing active
-            </Badge>
-          </div>
-        </div>
+        {/* Identical to the loaded branch below, deliberately: this is the same
+            header, and a hand-rolled copy of it here made the title jump a size
+            the instant data arrived (PageHeader steps down to text-xl on a
+            phone; the copy was text-2xl at every width). */}
+        <PageHeader
+          title="Subscription & Billing"
+          description="Manage subscriptions, invoices, and promotional codes"
+        >
+          <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary mr-1.5 animate-pulse" />
+            Auto-billing active
+          </Badge>
+        </PageHeader>
         <AdminPageSkeleton />
       </div>
     );

@@ -24,6 +24,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { PageHeader } from '@/components/shared/page-header';
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/actions/plans';
 import { PLAN_TYPES } from '@/lib/constants';
 
@@ -139,15 +140,14 @@ export default function PackagesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Manage Packages</h1>
-          <p className="text-muted-foreground">Create and edit subscription plans shown on the Pricing page</p>
-        </div>
+      <PageHeader
+        title="Manage Packages"
+        description="Create and edit subscription plans shown on the Pricing page"
+      >
         <Button onClick={openCreate}>
           <Plus className="w-4 h-4 mr-2" /> Add Package
         </Button>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardContent className="p-0">

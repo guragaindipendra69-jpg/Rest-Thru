@@ -255,6 +255,13 @@ const PAIRS = [
   ['chart-4', 'card', 3, 'chart series 4'],
   ['chart-5', 'card', 3, 'chart series 5'],
   ['chart-6', 'card', 3, 'chart series 6'],
+
+  // The comparison ("last period") line on the owner revenue chart. It is a
+  // series, so 3:1 is the floor even though CHART_REFERENCE in lib/constants.ts
+  // mirrors --muted-foreground and clears the stricter text target anyway. Held
+  // here so that dimming --muted-foreground for text reasons cannot quietly
+  // push a chart line under the series floor.
+  ['muted-foreground', 'card', 3, 'chart comparison line (CHART_REFERENCE)'],
 ];
 
 let failed = 0;

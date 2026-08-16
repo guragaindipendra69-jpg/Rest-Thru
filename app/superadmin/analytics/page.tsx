@@ -12,6 +12,13 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { getAnalyticsOverview } from '@/lib/actions/admin';
+// Series ink only. The grid, axis ticks and tooltip on this page are already
+// styled by the RECHARTS block in app/globals.css; a series fill is the one
+// chart colour that block does not reach, so it is the one that has to come
+// from the audited palette. The indigo and amber-500 literals these replaced
+// were off-palette (nothing else in the app is indigo) and amber-500 measured
+// 2.15:1 on a card, well under the 3:1 a chart series needs.
+import { chartColor } from '@/lib/constants';
 import { PageHeader } from '@/components/shared/page-header';
 import { toast } from 'sonner';
 
@@ -118,15 +125,15 @@ export default function AdminAnalytics() {
                   <AreaChart data={data.revenueOverTime}>
                     <defs>
                       <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        <stop offset="5%" stopColor={chartColor(0)} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={chartColor(0)} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                    <Area type="monotone" dataKey="amount" stroke="#6366f1" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="amount" stroke={chartColor(0)} fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -206,7 +213,7 @@ export default function AdminAnalytics() {
                     <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <YAxis type="category" dataKey="city" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={80} />
                     <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                    <Bar dataKey="amount" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="amount" fill={chartColor(0)} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -231,7 +238,7 @@ export default function AdminAnalytics() {
                     <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} interval={2} />
                     <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                    <Bar dataKey="orders" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="orders" fill={chartColor(3)} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

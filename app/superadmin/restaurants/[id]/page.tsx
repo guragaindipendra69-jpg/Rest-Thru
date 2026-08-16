@@ -13,6 +13,22 @@ import { getRestaurantFullDetail } from '@/lib/actions/admin';
 import { RestaurantControls } from './restaurant-controls';
 import { ADMIN_TONE_CLASSES } from '@/lib/constants';
 import { AdminPageSkeleton } from '@/components/superadmin/skeletons';
+import { PageHeader } from '@/components/shared/page-header';
+
+// Shared by the loading and loaded headers below, so the button cannot drift
+// between the two states the way the titles had.
+const BackToRestaurants = () => (
+  <Link href="/superadmin/restaurants">
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Back to all restaurants"
+      className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+    >
+      <ArrowLeft className="h-4.5 w-4.5" />
+    </Button>
+  </Link>
+);
 
 const StatusBadge = ({ status }: { status: string }) => {
   const colors: Record<string, string> = {
@@ -44,24 +60,14 @@ export default function RestaurantDetail() {
   if (!data) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/superadmin/restaurants">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Back to all restaurants"
-                className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
-              >
-                <ArrowLeft className="h-4.5 w-4.5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">Restaurant Details</h1>
-              <p className="text-sm text-muted-foreground mt-1">Restaurant ID: {params.id}</p>
-            </div>
-          </div>
-        </div>
+        {/* The loading twin of the header below. Both go through PageHeader so
+            the title cannot change size when the fetch lands, which is what
+            happened while this branch hand-rolled its own row. */}
+        <PageHeader
+          back={<BackToRestaurants />}
+          title="Restaurant Details"
+          description={`Restaurant ID: ${params.id}`}
+        />
         <AdminPageSkeleton />
       </div>
     );
@@ -71,24 +77,11 @@ export default function RestaurantDetail() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/superadmin/restaurants">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Back to all restaurants"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              <ArrowLeft className="h-4.5 w-4.5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">{restaurant.name}</h1>
-            <p className="text-sm text-muted-foreground mt-1">{restaurant.city}, {restaurant.state} &middot; {restaurant.type.replace(/_/g, ' ')}</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        back={<BackToRestaurants />}
+        title={restaurant.name}
+        description={`${restaurant.city}, ${restaurant.state} · ${restaurant.type.replace(/_/g, ' ')}`}
+      />
 
       <Card className="bg-card border-border shadow-sm">
         <CardContent className="p-6">

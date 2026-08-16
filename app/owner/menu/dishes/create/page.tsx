@@ -25,6 +25,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -181,11 +182,22 @@ export default function CreateDishPage() {
   return (
     <div className="pb-28">
       {/* ── Header ── */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.push(`${portalBase()}/menu`)}>
-          <ChevronLeft className="h-4 w-4 text-primary" />
-        </Button>
-        <h1 className="text-2xl font-bold">Create Dish</h1>
+      <div className="mb-6">
+        {/* aria-label because the control is icon-only, and it is the only way
+            out of this form without saving. */}
+        <PageHeader
+          back={
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Back without saving"
+              onClick={() => router.push(`${portalBase()}/menu`)}
+            >
+              <ChevronLeft className="h-4 w-4 text-primary" />
+            </Button>
+          }
+          title="Create Dish"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">

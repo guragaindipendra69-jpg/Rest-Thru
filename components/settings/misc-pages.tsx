@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { useAuthStore } from "@/store/auth-store";
 import { getSettingsData, upsertSettings, getActiveSubscription } from "@/lib/actions/settings";
 import { getBillingUsage } from "@/lib/actions/settings-pages";
@@ -110,12 +111,10 @@ export function IntegrationsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">Integrations</h1>
-        <p className="text-sm text-muted-foreground">
-          Switch a payment gateway on and enter its merchant credentials.
-        </p>
-      </div>
+      <PageHeader
+        title="Integrations"
+        description="Switch a payment gateway on and enter its merchant credentials."
+      />
 
       <div>
         <p className="text-sm font-medium mb-3">Payment Methods</p>
@@ -245,13 +244,12 @@ export function PrinterPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Printer</h1>
+      <PageHeader title="Printer">
         <Button size="sm" className="gap-2" disabled={saving} onClick={save}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Save Changes
         </Button>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardContent className="p-5 space-y-4">
@@ -329,7 +327,7 @@ const RELEASES: Array<{ version: string; date: string; items: string[] }> = [
 export function ReleaseNotesPage() {
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Release Notes</h1>
+      <PageHeader title="Release Notes" />
       <div className="space-y-4">
         {RELEASES.map((r) => (
           <Card key={r.version}>
@@ -402,18 +400,15 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold">Notifications</h1>
-          <p className="text-sm text-muted-foreground">
-            Choose which events raise an alert, and how loudly.
-          </p>
-        </div>
+      <PageHeader
+        title="Notifications"
+        description="Choose which events raise an alert, and how loudly."
+      >
         <Button size="sm" className="gap-2" disabled={saving} onClick={save}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Save Changes
         </Button>
-      </div>
+      </PageHeader>
 
       <div className="space-y-3">
         {NOTIFICATION_EVENTS.map((e) => (
@@ -481,7 +476,7 @@ export function BillingPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Billing &amp; Subscription</h1>
+      <PageHeader title="Billing &amp; Subscription" />
 
       <Card className="max-w-md">
         <CardContent className="p-5">

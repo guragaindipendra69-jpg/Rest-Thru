@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { getSupportTickets, createSupportTicket } from "@/lib/actions/settings-pages";
 import { TicketChat } from "@/components/shared/ticket-chat";
 import { useAuthStore } from "@/store/auth-store";
@@ -62,22 +63,21 @@ export default function SupportPage() {
   if (openTicket) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold truncate">{openTicket.subject}</h1>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
+        <PageHeader
+          title={<span className="block truncate">{openTicket.subject}</span>}
+          description={
+            <span className="font-mono text-xs">
               #{openTicket.id.slice(-8).toUpperCase()}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className={STATUS_TONE[openTicket.status] ?? ""}>
-              {openTicket.status.replace("_", " ")}
-            </Badge>
-            <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => { setOpenTicket(null); load(); }}>
-              <ArrowLeft className="w-4 h-4" /> All tickets
-            </Button>
-          </div>
-        </div>
+            </span>
+          }
+        >
+          <Badge variant="outline" className={STATUS_TONE[openTicket.status] ?? ""}>
+            {openTicket.status.replace("_", " ")}
+          </Badge>
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => { setOpenTicket(null); load(); }}>
+            <ArrowLeft className="w-4 h-4" /> All tickets
+          </Button>
+        </PageHeader>
 
         <Card>
           <CardContent className="p-4 border-b bg-muted/30">
@@ -95,12 +95,11 @@ export default function SupportPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-semibold">Support &amp; Feedback</h1>
+      <PageHeader title="Support &amp; Feedback">
         <Button size="sm" className="gap-2" onClick={() => setOpen(true)}>
           <Plus className="w-4 h-4" /> Give Feedback
         </Button>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">

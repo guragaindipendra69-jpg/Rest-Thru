@@ -47,9 +47,18 @@ import {
   getStaffReport,
   getTaxReport,
 } from '@/lib/actions/reports';
+import { chartColor, CHART_REFERENCE } from '@/lib/constants';
 import { toast } from 'sonner';
 
-const categoryColors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
+// There is deliberately no local palette here. getItemReport already returns a
+// `categoryColors` array built from the audited CHART_SERIES, and this file used
+// to shadow it with its own list of raw Tailwind hexes and render that instead -
+// so the server computed accessible colours and the client threw them away.
+// Three of those hexes were the ones lib/constants.ts records as the original
+// bug: emerald-500 at 2.54:1, amber-500 at 2.15:1 and cyan-500 at 2.43:1
+// against a white card, all under the 3:1 a chart series needs. Everything below
+// takes its colour from the server payload, or from chartColor() when the value
+// is a fixed choice this component makes rather than data.
 
 export default function ReportsPage() {
   const { restaurant } = useAuthStore();
@@ -301,8 +310,8 @@ export default function ReportsPage() {
                   <AreaChart data={sd.revenueData}>
                     <defs>
                       <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                        <stop offset="5%" stopColor={chartColor(0)} stopOpacity={0.8} />
+                        <stop offset="95%" stopColor={chartColor(0)} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -312,7 +321,7 @@ export default function ReportsPage() {
                     <Area
                       type="monotone"
                       dataKey="revenue"
-                      stroke="#4f46e5"
+                      stroke={chartColor(0)}
                       fillOpacity={1}
                       fill="url(#colorRevenue)"
                     />
@@ -320,7 +329,7 @@ export default function ReportsPage() {
                       <Line
                         type="monotone"
                         dataKey="lastRevenue"
-                        stroke="#9ca3af"
+                        stroke={CHART_REFERENCE}
                         strokeDasharray="5 5"
                         dot={false}
                       />
@@ -353,7 +362,7 @@ export default function ReportsPage() {
                       {sd.hourlyData.map((entry: any, index: number) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={entry.revenue > 25000 ? '#f59e0b' : '#4f46e5'}
+                          fill={entry.revenue > 25000 ? chartColor(3) : chartColor(0)}
                         />
                       ))}
                     </Bar>
@@ -385,7 +394,7 @@ export default function ReportsPage() {
                         labelLine={false}
                         label={(entry: any) => `${entry.name} ${entry.value}%`}
                         outerRadius={80}
-                        fill="#8884d8"
+                        fill={chartColor(0)}
                         dataKey="value"
                       >
                         {sd.paymentMethodBreakdown.map((entry: any, index: number) => (
@@ -552,11 +561,17 @@ export default function ReportsPage() {
                       label={(entry: any) => `${entry.name} ${entry.value}%`}
                       innerRadius={60}
                       outerRadius={100}
-                      fill="#8884d8"
+                      fill={chartColor(0)}
                       dataKey="value"
                     >
                       {id.categoryData.map((_: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={categoryColors[index % categoryColors.length]} />
+                        // id.categoryColors is built server-side from CHART_SERIES and
+                        // is the same length as categoryData; chartColor(index) is the
+                        // fallback for an older cached payload that predates the field.
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={id.categoryColors?.[index] ?? chartColor(index)}
+                        />
                       ))}
                     </Pie>
                     <Tooltip />

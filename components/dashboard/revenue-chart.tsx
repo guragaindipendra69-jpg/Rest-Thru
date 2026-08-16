@@ -14,7 +14,14 @@ import {
   YAxis,
 } from "recharts";
 import { formatCurrency } from "@/lib/format";
+import { chartColor } from "@/lib/constants";
 import type { ChartPoint } from "@/lib/actions/dashboard";
+
+// Series colour comes from the audited palette rather than a literal. This
+// chart was already close to brand, but "close" is how a palette drifts:
+// check-contrast.mjs guards --chart-1..6 and CHART_SERIES mirrors them, so a
+// hex written here is a value nothing measures.
+const SERIES = chartColor(0);
 
 export default function RevenueChart({ data }: { data: ChartPoint[] }) {
   if (!data.length) {
@@ -30,18 +37,22 @@ export default function RevenueChart({ data }: { data: ChartPoint[] }) {
       <AreaChart data={data}>
         <defs>
           <linearGradient id="cr" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor="#0E7A52" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#0E7A52" stopOpacity={0}   />
+            <stop offset="5%"  stopColor={SERIES} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={SERIES} stopOpacity={0}   />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-        <YAxis stroke="#9ca3af" fontSize={12} />
+        {/* No stroke/fontSize props: the RECHARTS block in app/globals.css sets
+            the axis line, tick lines and tick text with !important, so anything
+            passed here is silently overridden. A literal left in place reads as
+            if it were the live value. */}
+        <XAxis dataKey="date" />
+        <YAxis />
         <Tooltip formatter={(v: number) => formatCurrency(v)} />
         <Area
           type="monotone"
           dataKey="revenue"
-          stroke="#0E7A52"
+          stroke={SERIES}
           strokeWidth={2}
           fill="url(#cr)"
         />

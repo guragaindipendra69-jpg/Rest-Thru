@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { formatCurrency } from "@/lib/format";
 import { getTrashItems } from "@/lib/actions/settings-pages";
 
@@ -28,7 +29,7 @@ export default function TrashPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Trash</h1>
+      <PageHeader title="Trash" />
 
       <div className="flex gap-2">
         {([["ALL", "All"], ["VOID_INVOICE", "Void Invoice"]] as const).map(([v, l]) => (

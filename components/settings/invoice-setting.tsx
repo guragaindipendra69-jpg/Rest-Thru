@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { getInvoiceSettings, saveInvoiceSettings } from "@/lib/actions/print-settings";
 import { formatReceiptHTML, printReceipt, extractReceiptText } from "@/lib/printing";
 
@@ -127,18 +128,15 @@ export default function InvoiceSettingPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-semibold">Invoice Setting</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => printReceipt(previewHtml())}>
-            <Printer className="w-4 h-4" /> Print Preview
-          </Button>
-          <Button size="sm" className="gap-2" disabled={saving || !dirty} onClick={handleSave}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Changes
-          </Button>
-        </div>
-      </div>
+      <PageHeader title="Invoice Setting">
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => printReceipt(previewHtml())}>
+          <Printer className="w-4 h-4" /> Print Preview
+        </Button>
+        <Button size="sm" className="gap-2" disabled={saving || !dirty} onClick={handleSave}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save Changes
+        </Button>
+      </PageHeader>
 
       <div className="flex flex-col xl:flex-row gap-5 items-start">
         <div className="flex-1 min-w-0 w-full space-y-5">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { getActivityLogPage } from "@/lib/actions/settings-pages";
 
 export default function ActivityLogPage() {
@@ -38,7 +39,7 @@ export default function ActivityLogPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Activity Log</h1>
+      <PageHeader title="Activity Log" />
 
       <div className="flex gap-2 flex-wrap items-center">
         <div className="relative flex-1 min-w-[220px]">

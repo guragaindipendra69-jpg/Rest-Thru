@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { getTableCheckout, settleOrder } from "@/lib/actions/orders";
 import { formatCurrency, formatBSDate, formatBillNo, formatInvoiceNo } from "@/lib/format";
 import { formatReceiptHTML, printReceipt, downloadReceiptPdf } from "@/lib/printing";
@@ -210,14 +211,23 @@ export default function TableCheckoutPage() {
 
   return (
     <div className="p-4 lg:p-6">
-      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`${portal}/orders`)}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <h1 className="text-xl font-semibold">{heading}</h1>
-        </div>
-        <div className="flex gap-2">
+      <div className="mb-5">
+        {/* The back button carried no accessible name: an icon-only control is
+            announced as just "button" to a screen reader, and this is the only
+            way off a checkout screen. */}
+        <PageHeader
+          back={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back to orders"
+              onClick={() => router.push(`${portal}/orders`)}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          }
+          title={heading}
+        >
           <Button
             variant="outline"
             size="sm"
@@ -238,7 +248,7 @@ export default function TableCheckoutPage() {
           >
             <Printer className="w-4 h-4" /> Print Estimate
           </Button>
-        </div>
+        </PageHeader>
       </div>
 
       <div className="flex flex-col xl:flex-row gap-5 items-start">
