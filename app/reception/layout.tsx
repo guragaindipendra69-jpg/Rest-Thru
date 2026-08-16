@@ -5,7 +5,7 @@ import { Suspense } from 'react';
 import ReceptionShell from './shell';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { guardArea } from '@/lib/auth-guard';
-import { SHARED_LOGIN_PATH } from '@/lib/constants';
+import { RECEPTION_AUTH_ROUTES, SHARED_LOGIN_PATH } from '@/lib/constants';
 
 export default async function ReceptionLayout({
   children,
@@ -15,10 +15,19 @@ export default async function ReceptionLayout({
   // The proxy is the primary gate (unauthenticated /reception → the shared staff
   // login, WAITER → /order, RESTAURANT_OWNER → /owner); this repeats the check at
   // the layout level.
-  await guardArea({
+  const session = await guardArea({
     allowedRoles: ['RECEPTIONIST'],
     loginPath: SHARED_LOGIN_PATH,
+    publicPaths: RECEPTION_AUTH_ROUTES,
   });
+
+  // A null session here means a public path (guardArea redirects in every other
+  // case), i.e. one of the login stubs. Render it bare. Wrapping it in
+  // ReceptionShell instead puts its redirect() *inside* the shell's Suspense
+  // boundary, which Next resolves by falling back to client rendering — so the
+  // whole signed-in till navigation paints for an anonymous visitor and only
+  // then jumps to /login.
+  if (!session) return <>{children}</>;
 
   return (
     <ReceptionShell>

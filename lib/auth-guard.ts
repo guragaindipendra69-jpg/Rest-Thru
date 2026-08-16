@@ -14,6 +14,13 @@ import { homeForRole, portalForPath } from '@/lib/constants';
 // Relies on the `x-pathname` header that the proxy sets on every matched
 // request. If the header is absent (proxy didn't run) we treat the path
 // as non-public and fall through to the session check — failing closed.
+//
+// Returns the session, or `null` for a public path — and `null` means *only*
+// that, because every other branch below exits by redirect() rather than
+// returning. Callers rely on it: a layout that wraps children in an
+// authenticated shell must render `children` bare when it sees null, so a
+// login stub is not painted inside the signed-in navigation. See the note in
+// app/reception/layout.tsx for what happens when it does.
 export async function guardArea(opts: {
   allowedRoles: readonly string[];
   loginPath: string;

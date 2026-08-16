@@ -18,11 +18,19 @@ export default async function DashboardLayout({
   // reaches this Server Component without passing through the proxy
   // (misconfigured matcher, cached/replayed HTML, direct RSC fetch) still can't
   // render authenticated content. Owner + legacy STAFF only.
-  await guardArea({
+  const session = await guardArea({
     allowedRoles: ['RESTAURANT_OWNER', 'STAFF'],
     loginPath: SHARED_LOGIN_PATH,
     publicPaths: DASHBOARD_AUTH_ROUTES,
   });
+
+  // A null session means a public path (guardArea redirects in every other
+  // case): the /owner/login stub, or forgot-password / password-reset. Render
+  // bare. Inside DashboardShell, the stub's redirect() lands within the Suspense
+  // boundary below, which Next resolves by switching to client rendering - so
+  // the entire signed-in dashboard navigation paints for an anonymous visitor
+  // before the forward happens.
+  if (!session) return <>{children}</>;
 
   return (
     // Shell is a Client Component that owns sidebar + header state.

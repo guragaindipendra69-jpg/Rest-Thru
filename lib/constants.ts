@@ -336,6 +336,19 @@ export const SUPERADMIN_AUTH_ROUTES = ['/superadmin/login'] as const;
 // guard) so the two never drift.
 export const ORDER_AUTH_ROUTES = ['/order/login'] as const;
 
+// The reception equivalent. Reception was the one portal with no entry here and
+// no stub pages, which broke the case the other two exist for: the proxy turned
+// an anonymous /reception/login away to /login?redirect=/reception/login, that
+// target is same-origin and inside the receptionist's own portal so
+// safeRedirectForRole passed it, and nothing was mounted there - so correct
+// credentials produced a hard 404. Reception is the portal most likely to be
+// bookmarked on a till, and `/reception/order/login` is named as a retired URL
+// in login-redirect.tsx's own docstring, so both are stubbed.
+export const RECEPTION_AUTH_ROUTES = [
+  '/reception/login',
+  '/reception/order/login',
+] as const;
+
 // Canonical landing route for each role. Legacy STAFF maps to the owner
 // dashboard. Kept edge-safe (no server-only imports) so proxy.ts can
 // import it too. Used to bounce an authenticated-but-wrong-role user back to

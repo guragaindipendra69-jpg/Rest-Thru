@@ -5,6 +5,7 @@ import {
   DASHBOARD_AUTH_ROUTES,
   SUPERADMIN_AUTH_ROUTES,
   ORDER_AUTH_ROUTES,
+  RECEPTION_AUTH_ROUTES,
   SHARED_LOGIN_PATH,
   portalForPath,
   portalForRole,
@@ -35,7 +36,7 @@ const PORTAL_GUARDS: Record<
 > = {
   admin: { loginPath: "/superadmin/login", publicPaths: SUPERADMIN_AUTH_ROUTES },
   owner: { loginPath: SHARED_LOGIN_PATH, publicPaths: DASHBOARD_AUTH_ROUTES },
-  reception: { loginPath: SHARED_LOGIN_PATH, publicPaths: [] },
+  reception: { loginPath: SHARED_LOGIN_PATH, publicPaths: RECEPTION_AUTH_ROUTES },
   waiter: { loginPath: SHARED_LOGIN_PATH, publicPaths: ORDER_AUTH_ROUTES },
 };
 
