@@ -122,7 +122,8 @@ const Footer = () => {
 
             <div className="flex flex-col items-center sm:items-end gap-1 text-center sm:text-right text-xs sm:text-xs text-white/80">
               <p>{currentYear} Resthru. All rights reserved.</p>
-              <p>Made with ❤️ by Drill Thru</p>
+              
+              <p>Made with ❤️ by Dipendra Guragain</p>
             </div>
           </div>
         </div>
