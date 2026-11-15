@@ -122,8 +122,18 @@ const Footer = () => {
 
             <div className="flex flex-col items-center sm:items-end gap-1 text-center sm:text-right text-xs sm:text-xs text-white/80">
               <p>{currentYear} Resthru. All rights reserved.</p>
-              
-              <p>Made with ❤️ by Dipendra Guragain</p>
+
+              <p>
+                Made with ❤️ by{' '}
+                <a
+                  href="https://dipendraguragain.tech/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-white/50 underline-offset-4 transition-colors hover:text-white"
+                >
+                  Dipendra Guragain
+                </a>
+              </p>
             </div>
           </div>
         </div>
